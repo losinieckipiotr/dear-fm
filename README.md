@@ -7,3 +7,5 @@ Run:
 ```shell
 cargo run
 ```
+
+![demo](demo.png)
