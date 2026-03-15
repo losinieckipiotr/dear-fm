@@ -2,8 +2,8 @@ use imgui::*;
 use imgui_wgpu::{Renderer, RendererConfig};
 use imgui_winit_support::WinitPlatform;
 use pollster::block_on;
-use wgpu::rwh::HasDisplayHandle;
 use std::{sync::Arc, time::Instant};
+use wgpu::rwh::HasDisplayHandle;
 use winit::{
     application::ApplicationHandler,
     dpi::{LogicalSize, PhysicalSize, Size},
@@ -14,7 +14,7 @@ use winit::{
     window::{Window, WindowAttributes},
 };
 
-use log::{debug, error, info, trace, warn};
+use log::{debug, error, info, log_enabled, trace, warn};
 
 use env_logger::Env;
 
@@ -41,6 +41,8 @@ struct AppWindow {
 #[derive(Default)]
 struct App {
     window: Option<AppWindow>,
+    frame_count: u64,
+    last_frame_rate: f32,
 }
 
 // impl App {
@@ -54,19 +56,21 @@ struct App {
 // }
 
 fn main() {
-    env_logger::init();
+    // env_logger::init();
+
+    env_logger::init_from_env(
+        Env::new().default_filter_or(log::Level::Info.as_str())
+    );
 
     let event_loop = EventLoop::new().unwrap();
 
     event_loop.set_control_flow(ControlFlow::Poll);
 
+    //    if let handle = event_loop.owned_display_handle().display_handle().unwrap() {
+    //         let size = winit::monitor::MonitorHandle::size(handle);
 
-
-//    if let handle = event_loop.owned_display_handle().display_handle().unwrap() {
-//         let size = winit::monitor::MonitorHandle::size(handle);
-
-//         event_loop.run_app(&mut App::new(size.width, size.height)).unwrap();
-//    }
+    //         event_loop.run_app(&mut App::new(size.width, size.height)).unwrap();
+    //    }
 
     event_loop.run_app(&mut App::default()).unwrap();
 }
@@ -74,6 +78,8 @@ fn main() {
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         self.window = Some(AppWindow::new(event_loop));
+        self.frame_count = 0;
+        self.last_frame_rate = 0.0;
     }
 
     fn window_event(
@@ -112,6 +118,8 @@ impl ApplicationHandler for App {
                             // debug!("WIDTH: {}", size.width);
                             // debug!("HEIGHT: {}", size.height);
 
+                            info!("Toggling fullscreen");
+
                             window
                                 .window
                                 .set_simple_fullscreen(!window.window.simple_fullscreen());
@@ -127,6 +135,8 @@ impl ApplicationHandler for App {
             }
 
             WindowEvent::RedrawRequested => {
+                self.frame_count += 1;
+
                 let delta_s = imgui.last_frame.elapsed();
                 let now = Instant::now();
                 imgui
@@ -173,7 +183,18 @@ impl ApplicationHandler for App {
                         .size([400.0, 200.0], Condition::FirstUseEver)
                         .position([400.0, 200.0], Condition::FirstUseEver)
                         .build(|| {
-                            ui.text(format!("Frametime: {delta_s:?}"));
+                            // ui.text(format!("Frametime: {delta_s:?}"));
+
+                            let refresh_rate: u64 = 60;
+
+                            // TODO: save time to avrage FPS
+                            if (self.frame_count % refresh_rate) == 0 {
+                                self.last_frame_rate = 1.0 / delta_s.as_secs_f32();
+                            }
+
+                            let last_frame_rate: u32 = self.last_frame_rate.round() as u32;
+
+                            ui.text(format!("Frame rate: {last_frame_rate} FPS"));
                         });
 
                     ui.show_demo_window(&mut imgui.demo_open);
@@ -272,7 +293,6 @@ impl ApplicationHandler for App {
     }
 }
 
-
 impl AppWindow {
     fn new(event_loop: &ActiveEventLoop) -> Self {
         let mut window = Self::setup_gpu(event_loop);
@@ -281,6 +301,8 @@ impl AppWindow {
         window
     }
 
+    // TODO: refactor for better readability
+    // initialization funcions should be at the top of the file
     fn setup_gpu(event_loop: &ActiveEventLoop) -> Self {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::PRIMARY,
@@ -394,4 +416,3 @@ impl AppWindow {
         })
     }
 }
-
