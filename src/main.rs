@@ -1,20 +1,17 @@
 use imgui::*;
 use imgui_wgpu::{Renderer, RendererConfig};
-use imgui_winit_support::WinitPlatform;
+use imgui_winit_support::{HiDpiMode, WinitPlatform};
 use pollster::block_on;
 use std::{sync::Arc, time::Instant};
-use wgpu::rwh::HasDisplayHandle;
 use winit::{
     application::ApplicationHandler,
-    dpi::{LogicalSize, PhysicalSize, Size},
+    dpi::LogicalSize,
     event::{Event, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     keyboard::{Key, KeyCode, NamedKey, PhysicalKey},
     platform::macos::WindowExtMacOS,
-    window::{Window, WindowAttributes},
+    window::Window,
 };
-
-use log::{debug, error, info, log_enabled, trace, warn};
 
 use env_logger::Env;
 
@@ -58,9 +55,7 @@ struct App {
 fn main() {
     // env_logger::init();
 
-    env_logger::init_from_env(
-        Env::new().default_filter_or(log::Level::Info.as_str())
-    );
+    env_logger::init_from_env(Env::new().default_filter_or(log::Level::Info.as_str()));
 
     let event_loop = EventLoop::new().unwrap();
 
@@ -118,7 +113,7 @@ impl ApplicationHandler for App {
                             // debug!("WIDTH: {}", size.width);
                             // debug!("HEIGHT: {}", size.height);
 
-                            info!("Toggling fullscreen");
+                            log::info!("Toggling fullscreen");
 
                             window
                                 .window
@@ -158,30 +153,33 @@ impl ApplicationHandler for App {
                     .expect("Failed to prepare frame");
                 let ui = imgui.context.frame();
 
-                // let monitor = window.window.current_monitor().unwrap();
-                // let size = monitor.size();
-                // debug!("WIDTH: {}", size.width);
-                // debug!("HEIGHT: {}", size.height);
+                let app_window = &window.window;
 
                 {
-                    let window = ui.window("Hello world");
-                    window
-                        .size([300.0, 100.0], Condition::FirstUseEver)
-                        .build(|| {
-                            ui.text("Hello world!");
-                            ui.text("This...is...imgui-rs on WGPU!");
-                            ui.separator();
-                            let mouse_pos = ui.io().mouse_pos;
-                            ui.text(format!(
-                                "Mouse Position: ({:.1},{:.1})",
-                                mouse_pos[0], mouse_pos[1]
-                            ));
-                        });
+                    // let ava_size = ui.content_region_avail();
+                    // ui.io().config_flags
+
+                    let inner_size = app_window.inner_size();
+                    // log::info!("{:?}", inner_size);
+
+                    let scale = app_window.scale_factor();
+
+                    // log::info!("{:?}", scale);
+
+                    let width = ((inner_size.width as f64) / scale) as f32;
+                    let height = (inner_size.height as f64 / scale) as f32;
+
+                    // log::info!("{:?}", width);
 
                     let window = ui.window("Hello too");
                     window
-                        .size([400.0, 200.0], Condition::FirstUseEver)
-                        .position([400.0, 200.0], Condition::FirstUseEver)
+                        .size([width, height], Condition::Always)
+                        .position([0.0, 0.0], Condition::Always)
+                        .focus_on_appearing(true)
+                        .always_vertical_scrollbar(true)
+                        .collapsible(false)
+                        .resizable(false)
+                        .movable(false)
                         .build(|| {
                             // ui.text(format!("Frametime: {delta_s:?}"));
 
@@ -195,10 +193,32 @@ impl ApplicationHandler for App {
                             let last_frame_rate: u32 = self.last_frame_rate.round() as u32;
 
                             ui.text(format!("Frame rate: {last_frame_rate} FPS"));
-                        });
 
-                    ui.show_demo_window(&mut imgui.demo_open);
+                            let window_child_1 = ui.child_window("Left");
+
+                            // let [w, _] = ui.content_region_avail();
+
+                            window_child_1
+                                .size([width / 2.0, height])
+                                .border(true)
+                                // .flags(WindowFlags::NO_COLLAPSE | WindowFlags::NO_DECORATION)
+                                .build(|| {
+                                    ui.text("left child");
+                                });
+
+                            ui.same_line();
+
+                            let window_child_2 = ui.child_window("Right");
+                            window_child_2
+                                .size([width / 2., height])
+                                .border(true)
+                                .build(|| {
+                                    ui.text("right child");
+                                });
+                        });
                 }
+
+                ui.show_demo_window(&mut imgui.demo_open);
 
                 let mut encoder: wgpu::CommandEncoder = window
                     .device
@@ -362,15 +382,11 @@ impl AppWindow {
 
     fn setup_imgui(&mut self) {
         let mut context = imgui::Context::create();
-        let mut platform = imgui_winit_support::WinitPlatform::new(&mut context);
+        let mut platform = WinitPlatform::new(&mut context);
 
         // winit::monitor::MonitorHandle::size(&self)
 
-        platform.attach_window(
-            context.io_mut(),
-            &self.window,
-            imgui_winit_support::HiDpiMode::Default,
-        );
+        platform.attach_window(context.io_mut(), &self.window, HiDpiMode::Default);
         context.set_ini_filename(None);
 
         let font_size = (13.0 * self.hidpi_factor) as f32;
