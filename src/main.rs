@@ -223,8 +223,6 @@ impl ApplicationHandler for App {
             WindowEvent::KeyboardInput { event, .. } => {
                 log::debug!("WindowEvent::KeyboardInput");
 
-                self.on_keyboard_input(event);
-
                 match event.physical_key {
                     PhysicalKey::Code(KeyCode::KeyF) => {
                         let window = self.window.as_mut().unwrap();
@@ -366,7 +364,7 @@ impl App {
 
             // log::debug!("{:?}", width);
 
-            let window = ui.window("Hello too");
+            let window = ui.window("Main window");
             window
                 .size([width, height], Condition::Always)
                 .position([0.0, 0.0], Condition::Always)
@@ -375,6 +373,7 @@ impl App {
                 .collapsible(false)
                 .resizable(false)
                 .movable(false)
+                .title_bar(false)
                 .build(|| {
                     // ui.text(format!("Frametime: {delta_s:?}"));
 
@@ -464,23 +463,5 @@ impl App {
         window.queue.submit(Some(encoder.finish()));
 
         frame.present();
-    }
-
-    fn on_keyboard_input(&mut self, event: &KeyEvent) {
-        let window = self.window.as_mut().unwrap();
-        // let imgui = window.imgui.as_mut().unwrap();
-
-        if event.state.is_pressed() {
-            // let monitor = window.window.current_monitor().unwrap();
-            // let size = monitor.size();
-            // debug!("WIDTH: {}", size.width);
-            // debug!("HEIGHT: {}", size.height);
-
-            log::debug!("Toggling fullscreen");
-
-            window
-                .window
-                .set_simple_fullscreen(!window.window.simple_fullscreen());
-        }
     }
 }
