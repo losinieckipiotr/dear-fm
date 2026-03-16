@@ -6,7 +6,7 @@ use std::{sync::Arc, time::Instant};
 use winit::{
     application::ApplicationHandler,
     dpi::{LogicalSize, PhysicalSize},
-    event::{Event, KeyEvent, WindowEvent},
+    event::{Event, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     keyboard::{Key, KeyCode, NamedKey, PhysicalKey},
     platform::macos::WindowExtMacOS,
@@ -98,7 +98,7 @@ impl AppWindow {
 
             let attributes = Window::default_attributes()
                 .with_inner_size(LogicalSize::new(size.width, size.height))
-                .with_title(format!("KURWAAAAA {version}"));
+                .with_title(format!("Dear File Manager {version}"));
             Arc::new(event_loop.create_window(attributes).unwrap())
         };
 
@@ -179,7 +179,7 @@ impl AppWindow {
         let renderer = Renderer::new(&mut context, &self.device, &self.queue, renderer_config);
         let last_frame = Instant::now();
         let last_cursor = None;
-        let demo_open = true;
+        let demo_open = false;
 
         self.imgui = Some(ImguiState {
             context,
@@ -249,6 +249,17 @@ impl ApplicationHandler for App {
                     }
                 }
             }
+            // WindowEvent::MouseWheel {
+            //     device_id: _,
+            //     delta,
+            //     phase,
+            // } => {
+            //     // log::info!("delta: {:#?}", delta);
+            //     // log::info!("phase: {:#?}", phase);
+
+            //     // TODO: scroll is too fast i probably need to throttle
+            //     // based on refresh rate?
+            // }
             WindowEvent::CloseRequested => {
                 log::debug!("WindowEvent::CloseRequested");
 
@@ -281,6 +292,32 @@ impl ApplicationHandler for App {
             &Event::AboutToWait,
         );
     }
+
+    // fn device_event(
+    //     &mut self,
+    //     _event_loop: &ActiveEventLoop,
+    //     device_id: winit::event::DeviceId,
+    //     event: winit::event::DeviceEvent,
+    // ) {
+    //     let window = self.window.as_mut().unwrap();
+    //     let imgui = window.imgui.as_mut().unwrap();
+
+    //     match event {
+    //         winit::event::DeviceEvent::MouseWheel { delta } => {
+    //             log::info!("scroll event, {:#?}", delta);
+
+    //             // event_loop.listen_device_events();
+    //         }
+
+    //         _ => (),
+    //     }
+
+    //     imgui.platform.handle_event::<()>(
+    //         imgui.context.io_mut(),
+    //         &window.window,
+    //         &Event::DeviceEvent { device_id, event },
+    //     );
+    // }
 }
 
 // fn get_window(app_ref: RefCell<&mut App>) -> &mut AppWindow {
@@ -364,18 +401,27 @@ impl App {
 
             // log::debug!("{:?}", width);
 
+            //
+
+            //  let window_size = ui.window_size();
+
             let window = ui.window("Main window");
             window
                 .size([width, height], Condition::Always)
                 .position([0.0, 0.0], Condition::Always)
                 .focus_on_appearing(true)
-                .always_vertical_scrollbar(true)
                 .collapsible(false)
                 .resizable(false)
                 .movable(false)
                 .title_bar(false)
+                .scrollable(false)
+                .scroll_bar(false)
                 .build(|| {
                     // ui.text(format!("Frametime: {delta_s:?}"));
+
+                    // ui.text(format!("w: {width}, h: {height}"));
+                    // ui.text(format!("{:#?}", window_size));
+                    // ui.text(format!("{:#?}", scale));
 
                     let monitor = event_loop.primary_monitor().unwrap();
                     let refresh_rate_miliherz =
@@ -390,27 +436,38 @@ impl App {
                     let last_frame_rate: u32 = self.last_frame_rate.round() as u32;
 
                     ui.text(format!("Frame rate: {last_frame_rate} FPS"));
+                    ui.text("");
 
                     let window_child_1 = ui.child_window("Left");
 
-                    // let [w, _] = ui.content_region_avail();
+                    let content_region_avail = ui.content_region_avail();
+
+                    // let half_screen = width / 2.0;
+                    let half_screen_2 = content_region_avail[0] / 2.0;
+                    let main_window_h = content_region_avail[1];
+
+                    // ui.text(format!("half_screen: {:?}", half_screen));
+                    ui.text(format!("half_screen_2: {:?}", half_screen_2));
 
                     window_child_1
-                        .size([width / 2.0, height])
+                        .size([half_screen_2, main_window_h])
                         .border(true)
-                        // .flags(WindowFlags::NO_COLLAPSE | WindowFlags::NO_DECORATION)
                         .build(|| {
-                            ui.text("left child");
+                            for i in 0..200 {
+                                ui.text(format!("{i}_lef_file.xdd"));
+                            }
                         });
 
                     ui.same_line();
 
                     let window_child_2 = ui.child_window("Right");
                     window_child_2
-                        .size([width / 2., height])
+                        .size([0., main_window_h])
                         .border(true)
                         .build(|| {
-                            ui.text("right child");
+                            for i in 0..100 {
+                                ui.text(format!("{i}_right_file.xdd"));
+                            }
                         });
                 });
         }
