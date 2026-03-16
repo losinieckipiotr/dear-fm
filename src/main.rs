@@ -6,7 +6,7 @@ use std::{sync::Arc, time::Instant};
 use winit::{
     application::ApplicationHandler,
     dpi::{LogicalSize, PhysicalSize},
-    event::{Event, WindowEvent},
+    event::{Event, KeyEvent, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     keyboard::{Key, KeyCode, NamedKey, PhysicalKey},
     platform::macos::WindowExtMacOS,
@@ -220,13 +220,10 @@ impl ApplicationHandler for App {
 
                 self.on_redraw_requested(event_loop);
             }
-            WindowEvent::CloseRequested => {
-                log::debug!("WindowEvent::CloseRequested");
-
-                event_loop.exit()
-            }
             WindowEvent::KeyboardInput { event, .. } => {
                 log::debug!("WindowEvent::KeyboardInput");
+
+                self.on_keyboard_input(event);
 
                 match event.physical_key {
                     PhysicalKey::Code(KeyCode::KeyF) => {
@@ -253,6 +250,11 @@ impl ApplicationHandler for App {
                         event_loop.exit();
                     }
                 }
+            }
+            WindowEvent::CloseRequested => {
+                log::debug!("WindowEvent::CloseRequested");
+
+                event_loop.exit()
             }
             _ => (),
         }
@@ -283,6 +285,11 @@ impl ApplicationHandler for App {
     }
 }
 
+// fn get_window(app_ref: RefCell<&mut App>) -> &mut AppWindow {
+//     let mut app = app_ref.borrow_mut();
+//     let window = app.window.as_mut().unwrap()
+// }
+
 impl App {
     fn on_window_resized(&mut self, size: &PhysicalSize<u32>) {
         let window = self.window.as_mut().unwrap();
@@ -304,6 +311,11 @@ impl App {
     }
 
     fn on_redraw_requested(&mut self, event_loop: &ActiveEventLoop) {
+        // let app_ref = RefCell::from(self);
+
+        // let mut app1 = app_ref.borrow_mut();
+        // let mut app2 = app_ref.borrow_mut();
+
         let window = self.window.as_mut().unwrap();
         let imgui = window.imgui.as_mut().unwrap();
 
@@ -320,7 +332,7 @@ impl App {
         let frame = match window.surface.get_current_texture() {
             Ok(frame) => frame,
             Err(e) => {
-                eprintln!("dropped frame: {e:?}");
+                log::warn!("dropped frame: {e:?}");
                 return;
             }
         };
@@ -332,6 +344,11 @@ impl App {
         let ui = imgui.context.frame();
 
         let app_window = &window.window;
+        // let mut app2 = app_ref.borrow_mut();
+
+        // let app_ref: Box<App> = Box::new(slef);
+
+        // self.render(app_window, ui, event_loop, delta_s);
 
         {
             // let ava_size = ui.content_region_avail();
@@ -447,5 +464,23 @@ impl App {
         window.queue.submit(Some(encoder.finish()));
 
         frame.present();
+    }
+
+    fn on_keyboard_input(&mut self, event: &KeyEvent) {
+        let window = self.window.as_mut().unwrap();
+        // let imgui = window.imgui.as_mut().unwrap();
+
+        if event.state.is_pressed() {
+            // let monitor = window.window.current_monitor().unwrap();
+            // let size = monitor.size();
+            // debug!("WIDTH: {}", size.width);
+            // debug!("HEIGHT: {}", size.height);
+
+            log::debug!("Toggling fullscreen");
+
+            window
+                .window
+                .set_simple_fullscreen(!window.window.simple_fullscreen());
+        }
     }
 }
