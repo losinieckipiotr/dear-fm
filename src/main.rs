@@ -60,10 +60,6 @@ impl App {
         self.last_frame_rate = new_state.last_frame_rate;
         self.last_render_time = new_state.last_render_time;
     }
-
-    // fn get_imgui(&mut self) -> &mut &mut ImguiState {
-    //     self.get_mut_window().imgui
-    // }
 }
 
 fn main() {
@@ -116,7 +112,6 @@ impl AppWindow {
         let (device, queue) =
             block_on(adapter.request_device(&wgpu::DeviceDescriptor::default())).unwrap();
 
-        // Set up swap chain
         let surface_desc = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: wgpu::TextureFormat::Bgra8UnormSrgb,
@@ -161,9 +156,6 @@ impl AppWindow {
             }),
         }]);
 
-        //
-        // Set up dear imgui wgpu renderer
-        //
         let clear_color = wgpu::Color {
             r: 0.1,
             g: 0.2,
@@ -226,14 +218,8 @@ impl ApplicationHandler for App {
                 match event.physical_key {
                     PhysicalKey::Code(KeyCode::KeyF) => {
                         let window = self.window.as_mut().unwrap();
-                        // let imgui = window.imgui.as_mut().unwrap();
 
                         if event.state.is_pressed() {
-                            // let monitor = window.window.current_monitor().unwrap();
-                            // let size = monitor.size();
-                            // debug!("WIDTH: {}", size.width);
-                            // debug!("HEIGHT: {}", size.height);
-
                             log::debug!("Toggling fullscreen");
 
                             window
@@ -320,13 +306,10 @@ impl ApplicationHandler for App {
     // }
 }
 
-// fn get_window(app_ref: RefCell<&mut App>) -> &mut AppWindow {
-//     let mut app = app_ref.borrow_mut();
-//     let window = app.window.as_mut().unwrap()
-// }
-
 impl App {
     fn on_window_resized(&mut self, size: &PhysicalSize<u32>) {
+        log::debug!("on_window_resized");
+
         let window = self.window.as_mut().unwrap();
 
         window.surface_desc = wgpu::SurfaceConfiguration {
@@ -346,10 +329,7 @@ impl App {
     }
 
     fn on_redraw_requested(&mut self, event_loop: &ActiveEventLoop) {
-        // let app_ref = RefCell::from(self);
-
-        // let mut app1 = app_ref.borrow_mut();
-        // let mut app2 = app_ref.borrow_mut();
+        log::debug!("on_redraw_requested");
 
         let window = self.window.as_mut().unwrap();
         let imgui = window.imgui.as_mut().unwrap();
@@ -379,98 +359,61 @@ impl App {
         let ui = imgui.context.frame();
 
         let app_window = &window.window;
-        // let mut app2 = app_ref.borrow_mut();
 
-        // let app_ref: Box<App> = Box::new(slef);
+        let inner_size = app_window.inner_size();
+        let scale = app_window.scale_factor();
+        let width = ((inner_size.width as f64) / scale) as f32;
+        let height = (inner_size.height as f64 / scale) as f32;
 
-        // self.render(app_window, ui, event_loop, delta_s);
+        ui.window("Main window")
+            .size([width, height], Condition::Always)
+            .position([0.0, 0.0], Condition::Always)
+            .focus_on_appearing(true)
+            .collapsible(false)
+            .resizable(false)
+            .movable(false)
+            .title_bar(false)
+            .scrollable(false)
+            .scroll_bar(false)
+            .build(|| {
+                let monitor = event_loop.primary_monitor().unwrap();
+                let refresh_rate_miliherz = monitor.refresh_rate_millihertz().unwrap_or(60 * 1000);
+                let refresh_rate: u64 = (refresh_rate_miliherz / 1000).into();
 
-        {
-            // let ava_size = ui.content_region_avail();
-            // ui.io().config_flags
+                // TODO: save time to avrage FPS
+                if (self.frame_count % refresh_rate) == 0 {
+                    self.last_frame_rate = 1.0 / delta_s.as_secs_f32();
+                }
 
-            let inner_size = app_window.inner_size();
-            // log::debug!("{:?}", inner_size);
+                let last_frame_rate: u32 = self.last_frame_rate.round() as u32;
+                let content_region_avail = ui.content_region_avail();
+                let half_screen_2 = content_region_avail[0] / 2.0;
+                let main_window_h = content_region_avail[1];
 
-            let scale = app_window.scale_factor();
+                ui.text(format!("Frame rate: {last_frame_rate} FPS"));
+                ui.text("");
+                ui.text(format!("half_screen_2: {:?}", half_screen_2));
 
-            // log::debug!("{:?}", scale);
+                ui.child_window("Left")
+                    .size([half_screen_2, main_window_h])
+                    .border(true)
+                    .build(|| {
+                        for i in 0..200 {
+                            ui.text(format!("{i}_lef_file.xdd"));
+                        }
+                    });
 
-            let width = ((inner_size.width as f64) / scale) as f32;
-            let height = (inner_size.height as f64 / scale) as f32;
+                ui.same_line();
 
-            // log::debug!("{:?}", width);
-
-            //
-
-            //  let window_size = ui.window_size();
-
-            let window = ui.window("Main window");
-            window
-                .size([width, height], Condition::Always)
-                .position([0.0, 0.0], Condition::Always)
-                .focus_on_appearing(true)
-                .collapsible(false)
-                .resizable(false)
-                .movable(false)
-                .title_bar(false)
-                .scrollable(false)
-                .scroll_bar(false)
-                .build(|| {
-                    // ui.text(format!("Frametime: {delta_s:?}"));
-
-                    // ui.text(format!("w: {width}, h: {height}"));
-                    // ui.text(format!("{:#?}", window_size));
-                    // ui.text(format!("{:#?}", scale));
-
-                    let monitor = event_loop.primary_monitor().unwrap();
-                    let refresh_rate_miliherz =
-                        monitor.refresh_rate_millihertz().unwrap_or(60 * 1000);
-                    let refresh_rate: u64 = (refresh_rate_miliherz / 1000).into();
-
-                    // TODO: save time to avrage FPS
-                    if (self.frame_count % refresh_rate) == 0 {
-                        self.last_frame_rate = 1.0 / delta_s.as_secs_f32();
-                    }
-
-                    let last_frame_rate: u32 = self.last_frame_rate.round() as u32;
-
-                    ui.text(format!("Frame rate: {last_frame_rate} FPS"));
-                    ui.text("");
-
-                    let window_child_1 = ui.child_window("Left");
-
-                    let content_region_avail = ui.content_region_avail();
-
-                    // let half_screen = width / 2.0;
-                    let half_screen_2 = content_region_avail[0] / 2.0;
-                    let main_window_h = content_region_avail[1];
-
-                    // ui.text(format!("half_screen: {:?}", half_screen));
-                    ui.text(format!("half_screen_2: {:?}", half_screen_2));
-
-                    window_child_1
-                        .size([half_screen_2, main_window_h])
-                        .border(true)
-                        .build(|| {
-                            for i in 0..200 {
-                                ui.text(format!("{i}_lef_file.xdd"));
-                            }
-                        });
-
-                    ui.same_line();
-
-                    let window_child_2 = ui.child_window("Right");
-                    window_child_2
-                        .size([0., main_window_h])
-                        .border(true)
-                        .build(|| {
-                            for i in 0..100 {
-                                ui.text(format!("{i}_right_file.xdd"));
-                            }
-                        });
-                });
-        }
+                ui.child_window("Right")
+                    .size([0., main_window_h])
+                    .border(true)
+                    .build(|| {
+                        for i in 0..100 {
+                            ui.text(format!("{i}_right_file.xdd"));
+                        }
+                    });
+            });
 
         if imgui.demo_open {
             ui.show_demo_window(&mut imgui.demo_open);
@@ -482,7 +425,7 @@ impl App {
 
         if imgui.last_cursor != ui.mouse_cursor() {
             imgui.last_cursor = ui.mouse_cursor();
-            imgui.platform.prepare_render(ui, &window.window);
+            imgui.platform.prepare_render(&ui, &window.window);
         }
 
         let view = frame
