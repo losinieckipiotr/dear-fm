@@ -23,6 +23,7 @@ struct ImguiState {
     demo_open: bool,
     last_frame: Instant,
     last_cursor: Option<MouseCursor>,
+    left_item_selected_idx: i32,
 }
 
 struct AppWindow {
@@ -37,7 +38,6 @@ struct AppWindow {
 
 struct App {
     window: Option<AppWindow>,
-    frame_count: u64,
     last_frame_rate: f32,
     last_render_time: Instant,
 }
@@ -46,7 +46,6 @@ impl App {
     fn new() -> Self {
         Self {
             window: Option::None,
-            frame_count: 0,
             last_frame_rate: 0.,
             last_render_time: Instant::now(),
         }
@@ -56,7 +55,6 @@ impl App {
         let new_state = App::new();
 
         self.window = new_state.window;
-        self.frame_count = new_state.frame_count;
         self.last_frame_rate = new_state.last_frame_rate;
         self.last_render_time = new_state.last_render_time;
     }
@@ -156,31 +154,27 @@ impl AppWindow {
             }),
         }]);
 
-        let clear_color = wgpu::Color {
-            r: 0.1,
-            g: 0.2,
-            b: 0.3,
-            a: 1.0,
-        };
-
         let renderer_config = RendererConfig {
             texture_format: self.surface_desc.format,
             ..Default::default()
         };
 
         let renderer = Renderer::new(&mut context, &self.device, &self.queue, renderer_config);
-        let last_frame = Instant::now();
-        let last_cursor = None;
-        let demo_open = false;
 
         self.imgui = Some(ImguiState {
             context,
             platform,
             renderer,
-            clear_color,
-            demo_open,
-            last_frame,
-            last_cursor,
+            clear_color: wgpu::Color {
+                r: 0.1,
+                g: 0.2,
+                b: 0.3,
+                a: 1.0,
+            },
+            demo_open: false,
+            last_frame: Instant::now(),
+            last_cursor: None,
+            left_item_selected_idx: 0,
         })
     }
 }
@@ -331,13 +325,14 @@ impl App {
     fn on_redraw_requested(&mut self, event_loop: &ActiveEventLoop) {
         log::debug!("on_redraw_requested");
 
+        let now = Instant::now();
+
         let window = self.window.as_mut().unwrap();
         let imgui = window.imgui.as_mut().unwrap();
 
-        self.frame_count += 1;
-
         let delta_s = imgui.last_frame.elapsed();
-        let now = Instant::now();
+        let frame_count = imgui.context.frame_count();
+
         imgui
             .context
             .io_mut()
@@ -365,6 +360,15 @@ impl App {
         let width = ((inner_size.width as f64) / scale) as f32;
         let height = (inner_size.height as f64 / scale) as f32;
 
+        let monitor = event_loop.primary_monitor().unwrap();
+        let refresh_rate_miliherz = monitor.refresh_rate_millihertz().unwrap_or(60 * 1000);
+        let refresh_rate = (refresh_rate_miliherz / 1000) as i32;
+        // TODO: save time to avrage FPS
+        if (frame_count % refresh_rate) == 0 {
+            self.last_frame_rate = 1.0 / delta_s.as_secs_f32();
+        }
+        let last_frame_rate: u32 = self.last_frame_rate.round() as u32;
+
         ui.window("Main window")
             .size([width, height], Condition::Always)
             .position([0.0, 0.0], Condition::Always)
@@ -376,31 +380,37 @@ impl App {
             .scrollable(false)
             .scroll_bar(false)
             .build(|| {
-                let monitor = event_loop.primary_monitor().unwrap();
-                let refresh_rate_miliherz = monitor.refresh_rate_millihertz().unwrap_or(60 * 1000);
-                let refresh_rate: u64 = (refresh_rate_miliherz / 1000).into();
-
-                // TODO: save time to avrage FPS
-                if (self.frame_count % refresh_rate) == 0 {
-                    self.last_frame_rate = 1.0 / delta_s.as_secs_f32();
-                }
-
-                let last_frame_rate: u32 = self.last_frame_rate.round() as u32;
                 let content_region_avail = ui.content_region_avail();
                 let half_screen_2 = content_region_avail[0] / 2.0;
                 let main_window_h = content_region_avail[1];
 
-                ui.text(format!("Frame rate: {last_frame_rate} FPS"));
-                ui.text("");
-                ui.text(format!("half_screen_2: {:?}", half_screen_2));
-
-                ui.child_window("Left")
+                ui.child_window("left window")
                     .size([half_screen_2, main_window_h])
                     .border(true)
                     .build(|| {
-                        for i in 0..200 {
-                            ui.text(format!("{i}_lef_file.xdd"));
+                        const LEFT_ITEMS_NUM: usize = 200;
+                        ui.text(format!("Frame rate: {last_frame_rate} FPS"));
+                        ui.text(format!("Frame count: {frame_count}"));
+
+                        let current_item = &mut imgui.left_item_selected_idx;
+                        let mut items = Vec::with_capacity(LEFT_ITEMS_NUM);
+                        for i in 0..LEFT_ITEMS_NUM {
+                            let item = format!("{i}_lef_file.xdd");
+                            items.push(item);
                         }
+                        let items_strs: Vec<&str> =
+                            items.iter().map(|item| item.as_str()).collect();
+
+                        imgui::Ui::set_next_item_width(ui, -1.0);
+                        let clicked = ui.list_box(
+                            "##left listbox",
+                            current_item,
+                            items_strs.as_slice(),
+                            LEFT_ITEMS_NUM as i32,
+                        );
+
+                        ui.text(format!("clicked: {clicked}"));
+                        ui.text(format!("current_item: {current_item}"));
                     });
 
                 ui.same_line();
