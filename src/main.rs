@@ -15,6 +15,7 @@ use winit::{
 
 use env_logger::Env;
 
+mod files;
 mod render;
 
 pub struct ImguiState {
@@ -42,6 +43,8 @@ struct App {
     window: Option<AppWindow>,
     last_frame_rate: f32,
     last_render_time: Instant,
+    left_files: Vec<String>,
+    right_files: Vec<String>,
 }
 
 impl App {
@@ -50,6 +53,8 @@ impl App {
             window: Option::None,
             last_frame_rate: 0.,
             last_render_time: Instant::now(),
+            left_files: Vec::new(),
+            right_files: Vec::new(),
         }
     }
 
@@ -61,6 +66,9 @@ impl App {
         self.last_render_time = new_state.last_render_time;
     }
 }
+
+const LEFT_PATH: &str = "/";
+const RIGHT_PATH: &str = "/Users/piotrlosiniecki";
 
 fn main() {
     // env_logger::init();
@@ -187,6 +195,22 @@ impl ApplicationHandler for App {
 
         self.reset_state();
         self.window = Some(AppWindow::new(event_loop));
+
+        match files::read_directory(LEFT_PATH) {
+            Ok(files) => self.left_files = files,
+            Err(error) => {
+                log::error!("error during left directory read: {:#?}", error);
+                self.left_files = vec![];
+            }
+        }
+
+        match files::read_directory(RIGHT_PATH) {
+            Ok(files) => self.right_files = files,
+            Err(error) => {
+                log::error!("error during right directory read: {:#?}", error);
+                self.right_files = vec![];
+            }
+        }
     }
 
     fn window_event(
@@ -332,7 +356,6 @@ impl App {
         let window = self.window.as_mut().unwrap();
         let imgui = window.imgui.as_mut().unwrap();
 
-        // let window_ptr = window as *mut AppWindow;
         let imgui_ptr = imgui as *mut ImguiState;
 
         let delta_s = imgui.last_frame.elapsed();
@@ -387,25 +410,25 @@ impl App {
             .scroll_bar(false)
             .build(|| {
                 let content_region_avail = ui.content_region_avail();
-                let half_screen_2 = content_region_avail[0] / 2.0;
+                let half_screen = content_region_avail[0] / 2.0;
                 let main_window_h = content_region_avail[1];
 
-                ui.child_window("left window")
-                    .size([half_screen_2, main_window_h])
-                    .border(true)
-                    .build(|| {
-                        ui.text(format!("Frame rate: {last_frame_rate} FPS"));
-                        ui.text(format!("Frame count: {frame_count}"));
-
-                        unsafe {
-                            render::render_listbox(ui_ptr, imgui_ptr);
-                        }
-                    });
+                unsafe {
+                    render::render_left(
+                        ui_ptr,
+                        imgui_ptr,
+                        half_screen,
+                        main_window_h,
+                        last_frame_rate,
+                        frame_count,
+                        &self.left_files,
+                    );
+                }
 
                 ui.same_line();
 
                 unsafe {
-                    render::render_right(ui_ptr, main_window_h);
+                    render::render_right(ui_ptr, imgui_ptr, main_window_h, &self.right_files);
                 }
             });
 
