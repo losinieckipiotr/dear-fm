@@ -15,7 +15,9 @@ use winit::{
 
 use env_logger::Env;
 
-struct ImguiState {
+mod render;
+
+pub struct ImguiState {
     context: imgui::Context,
     platform: WinitPlatform,
     renderer: Renderer,
@@ -330,6 +332,9 @@ impl App {
         let window = self.window.as_mut().unwrap();
         let imgui = window.imgui.as_mut().unwrap();
 
+        // let window_ptr = window as *mut AppWindow;
+        let imgui_ptr = imgui as *mut ImguiState;
+
         let delta_s = imgui.last_frame.elapsed();
         let frame_count = imgui.context.frame_count();
 
@@ -352,6 +357,7 @@ impl App {
             .prepare_frame(imgui.context.io_mut(), &window.window)
             .expect("Failed to prepare frame");
         let ui = imgui.context.frame();
+        let ui_ptr = ui as *mut Ui;
 
         let app_window = &window.window;
 
@@ -388,41 +394,19 @@ impl App {
                     .size([half_screen_2, main_window_h])
                     .border(true)
                     .build(|| {
-                        const LEFT_ITEMS_NUM: usize = 200;
                         ui.text(format!("Frame rate: {last_frame_rate} FPS"));
                         ui.text(format!("Frame count: {frame_count}"));
 
-                        let current_item = &mut imgui.left_item_selected_idx;
-                        let mut items = Vec::with_capacity(LEFT_ITEMS_NUM);
-                        for i in 0..LEFT_ITEMS_NUM {
-                            let item = format!("{i}_lef_file.xdd");
-                            items.push(item);
+                        unsafe {
+                            render::render_listbox(ui_ptr, imgui_ptr);
                         }
-                        let items_strs: Vec<&str> =
-                            items.iter().map(|item| item.as_str()).collect();
-
-                        imgui::Ui::set_next_item_width(ui, -1.0);
-                        let clicked = ui.list_box(
-                            "##left listbox",
-                            current_item,
-                            items_strs.as_slice(),
-                            LEFT_ITEMS_NUM as i32,
-                        );
-
-                        ui.text(format!("clicked: {clicked}"));
-                        ui.text(format!("current_item: {current_item}"));
                     });
 
                 ui.same_line();
 
-                ui.child_window("Right")
-                    .size([0., main_window_h])
-                    .border(true)
-                    .build(|| {
-                        for i in 0..100 {
-                            ui.text(format!("{i}_right_file.xdd"));
-                        }
-                    });
+                unsafe {
+                    render::render_right(ui_ptr, main_window_h);
+                }
             });
 
         if imgui.demo_open {
