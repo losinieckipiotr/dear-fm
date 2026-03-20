@@ -2,7 +2,10 @@ use imgui::*;
 use imgui_wgpu::{Renderer, RendererConfig};
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
 use pollster::block_on;
-use std::{sync::Arc, time::Instant};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use winit::{
     application::ApplicationHandler,
     dpi::{LogicalSize, PhysicalSize},
@@ -26,7 +29,11 @@ pub struct ImguiState {
     demo_open: bool,
     last_frame: Instant,
     last_cursor: Option<MouseCursor>,
+    last_frame_measure_time: Instant,
+    last_measure_frame_count: i32,
+    frame_rate: i32,
     left_item_selected_idx: i32,
+    right_item_selected_idx: i32,
 }
 
 struct AppWindow {
@@ -41,8 +48,6 @@ struct AppWindow {
 
 struct App {
     window: Option<AppWindow>,
-    last_frame_rate: f32,
-    last_render_time: Instant,
     left_files: Vec<String>,
     right_files: Vec<String>,
 }
@@ -51,8 +56,6 @@ impl App {
     fn new() -> Self {
         Self {
             window: Option::None,
-            last_frame_rate: 0.,
-            last_render_time: Instant::now(),
             left_files: Vec::new(),
             right_files: Vec::new(),
         }
@@ -62,8 +65,6 @@ impl App {
         let new_state = App::new();
 
         self.window = new_state.window;
-        self.last_frame_rate = new_state.last_frame_rate;
-        self.last_render_time = new_state.last_render_time;
     }
 }
 
@@ -171,6 +172,8 @@ impl AppWindow {
 
         let renderer = Renderer::new(&mut context, &self.device, &self.queue, renderer_config);
 
+        let last_frame = Instant::now();
+
         self.imgui = Some(ImguiState {
             context,
             platform,
@@ -182,9 +185,13 @@ impl AppWindow {
                 a: 1.0,
             },
             demo_open: false,
-            last_frame: Instant::now(),
+            last_frame,
             last_cursor: None,
+            last_frame_measure_time: last_frame,
+            last_measure_frame_count: 0,
+            frame_rate: 0,
             left_item_selected_idx: 0,
+            right_item_selected_idx: 0,
         })
     }
 }
@@ -348,18 +355,14 @@ impl App {
             .configure(&window.device, &window.surface_desc);
     }
 
-    fn on_redraw_requested(&mut self, event_loop: &ActiveEventLoop) {
+    fn on_redraw_requested(&mut self, _event_loop: &ActiveEventLoop) {
         log::debug!("on_redraw_requested");
 
         let now = Instant::now();
 
         let window = self.window.as_mut().unwrap();
         let imgui = window.imgui.as_mut().unwrap();
-
         let imgui_ptr = imgui as *mut ImguiState;
-
-        let delta_s = imgui.last_frame.elapsed();
-        let frame_count = imgui.context.frame_count();
 
         imgui
             .context
@@ -374,6 +377,7 @@ impl App {
                 return;
             }
         };
+        let frame_count = imgui.context.frame_count();
 
         imgui
             .platform
@@ -383,20 +387,20 @@ impl App {
         let ui_ptr = ui as *mut Ui;
 
         let app_window = &window.window;
-
         let inner_size = app_window.inner_size();
         let scale = app_window.scale_factor();
         let width = ((inner_size.width as f64) / scale) as f32;
         let height = (inner_size.height as f64 / scale) as f32;
 
-        let monitor = event_loop.primary_monitor().unwrap();
-        let refresh_rate_miliherz = monitor.refresh_rate_millihertz().unwrap_or(60 * 1000);
-        let refresh_rate = (refresh_rate_miliherz / 1000) as i32;
-        // TODO: save time to avrage FPS
-        if (frame_count % refresh_rate) == 0 {
-            self.last_frame_rate = 1.0 / delta_s.as_secs_f32();
+        let dt = now - imgui.last_frame_measure_time;
+
+        if dt > Duration::from_secs(1) {
+            let frame_rate = frame_count - imgui.last_measure_frame_count;
+
+            imgui.frame_rate = frame_rate;
+            imgui.last_frame_measure_time = now;
+            imgui.last_measure_frame_count = frame_count;
         }
-        let last_frame_rate: u32 = self.last_frame_rate.round() as u32;
 
         ui.window("Main window")
             .size([width, height], Condition::Always)
@@ -419,8 +423,6 @@ impl App {
                         imgui_ptr,
                         half_screen,
                         main_window_h,
-                        last_frame_rate,
-                        frame_count,
                         &self.left_files,
                     );
                 }
