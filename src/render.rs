@@ -11,36 +11,57 @@ pub unsafe fn render_left(
 ) {
     unsafe {
         let ui = ui_ptr.as_mut().unwrap();
+        let imgui = imgui_ptr.as_mut().unwrap();
+        let focused = (*imgui_ptr).focused_window_left;
 
-        render_left_impl(ui, imgui_ptr, half_screen, main_window_h, files);
+        render_left_impl(ui, imgui, half_screen, main_window_h, files, focused);
     }
 }
 
 fn render_left_impl(
     ui: &mut Ui,
-    imgui_ptr: *mut ImguiState,
+    imgui: &mut ImguiState,
     half_screen: f32,
     main_window_h: f32,
     files: &Vec<String>,
+    focused: bool,
 ) {
     let ui_ptr = ui as *mut Ui;
 
     ui.child_window("left window")
         .size([half_screen, main_window_h])
         .border(true)
-        .build(|| unsafe {
-            let imgui = imgui_ptr.as_mut().unwrap();
-            let current_item = &mut imgui.left_item_selected_idx;
-
+        .focused(focused)
+        .build(|| {
             let frame_rate = imgui.frame_rate;
             let frame_count = imgui.context.frame_count();
+            let has_focus =
+                ui.is_window_focused_with_flags(imgui::WindowFocusedFlags::CHILD_WINDOWS);
 
             ui.text(format!("Frame rate: {frame_rate} FPS"));
             ui.text(format!("Frame count: {frame_count}"));
+            ui.text(format!("Has focus: {has_focus}"));
 
-            // render_frames_info(ui, frame_rate, frame_count);
+            if has_focus {
+                if ui.is_key_pressed(imgui::Key::DownArrow) {
+                    let next_item = imgui.left_item_selected_idx + 1;
+                    if next_item < files.len() as i32 {
+                        imgui.left_item_selected_idx = next_item
+                    }
+                }
+                if ui.is_key_pressed(imgui::Key::UpArrow) {
+                    let prev_item = imgui.left_item_selected_idx - 1;
+                    if prev_item >= 0 {
+                        imgui.left_item_selected_idx = prev_item
+                    }
+                }
+            }
 
-            render_listbox(ui_ptr, files, current_item);
+            let current_item = &mut imgui.left_item_selected_idx;
+
+            unsafe {
+                render_listbox(ui_ptr, files, current_item);
+            }
         });
 }
 
@@ -52,25 +73,52 @@ pub unsafe fn render_right(
 ) {
     unsafe {
         let ui = ui.as_mut().unwrap();
-        render_right_impl(ui, imgui_ptr, main_window_h, files);
+        let imgui = imgui_ptr.as_mut().unwrap();
+        let focused = !(*imgui_ptr).focused_window_left;
+
+        render_right_impl(ui, imgui, main_window_h, files, focused);
     }
 }
 
 fn render_right_impl(
     ui: &mut Ui,
-    imgui_ptr: *mut ImguiState,
+    imgui: &mut ImguiState,
     main_window_h: f32,
     files: &Vec<String>,
+    focused: bool,
 ) {
     let ui_ptr = ui as *mut Ui;
 
     ui.child_window("Right")
         .size([0., main_window_h])
         .border(true)
-        .build(|| unsafe {
-            let imgui = imgui_ptr.as_mut().unwrap();
+        .focused(focused)
+        .build(|| {
+            let has_focus =
+                ui.is_window_focused_with_flags(imgui::WindowFocusedFlags::CHILD_WINDOWS);
+            ui.text(format!("Has focus: {has_focus}"));
+
+            if has_focus {
+                if ui.is_key_pressed(imgui::Key::DownArrow) {
+                    let next_item = imgui.right_item_selected_idx + 1;
+                    if next_item < files.len() as i32 {
+                        imgui.right_item_selected_idx = next_item
+                    }
+                }
+
+                if ui.is_key_pressed(imgui::Key::UpArrow) {
+                    let prev_item = imgui.right_item_selected_idx - 1;
+                    if prev_item >= 0 {
+                        imgui.right_item_selected_idx = prev_item
+                    }
+                }
+            }
+
             let current_item = &mut imgui.right_item_selected_idx;
-            render_listbox(ui_ptr, files, current_item);
+
+            unsafe {
+                render_listbox(ui_ptr, files, current_item);
+            }
         });
 }
 

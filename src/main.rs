@@ -34,6 +34,7 @@ pub struct ImguiState {
     frame_rate: i32,
     left_item_selected_idx: i32,
     right_item_selected_idx: i32,
+    focused_window_left: bool,
 }
 
 struct AppWindow {
@@ -192,6 +193,7 @@ impl AppWindow {
             frame_rate: 0,
             left_item_selected_idx: 0,
             right_item_selected_idx: 0,
+            focused_window_left: true,
         })
     }
 }
@@ -246,7 +248,7 @@ impl ApplicationHandler for App {
                     PhysicalKey::Code(KeyCode::KeyF) => {
                         let window = self.window.as_mut().unwrap();
 
-                        if event.state.is_pressed() {
+                        if event.state.is_pressed() && !event.repeat {
                             log::debug!("Toggling fullscreen");
 
                             window
@@ -405,7 +407,6 @@ impl App {
         ui.window("Main window")
             .size([width, height], Condition::Always)
             .position([0.0, 0.0], Condition::Always)
-            .focus_on_appearing(true)
             .collapsible(false)
             .resizable(false)
             .movable(false)
@@ -416,6 +417,11 @@ impl App {
                 let content_region_avail = ui.content_region_avail();
                 let half_screen = content_region_avail[0] / 2.0;
                 let main_window_h = content_region_avail[1];
+
+                // TODO: handle click in windows?
+                if ui.is_key_pressed(imgui::Key::Tab) {
+                    imgui.focused_window_left = !imgui.focused_window_left;
+                }
 
                 unsafe {
                     render::render_left(
