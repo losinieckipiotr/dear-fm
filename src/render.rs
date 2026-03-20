@@ -94,9 +94,17 @@ fn render_right_impl(
         .border(true)
         .focused(focused)
         .build(|| {
+            let active = ui.is_item_active();
+            ui.text(format!("Active: {active}"));
+
             let has_focus =
                 ui.is_window_focused_with_flags(imgui::WindowFocusedFlags::CHILD_WINDOWS);
+            let hovered = ui.is_window_hovered_with_flags(imgui::WindowHoveredFlags::CHILD_WINDOWS);
+            let clicked = ui.is_mouse_clicked(imgui::MouseButton::Left);
+
             ui.text(format!("Has focus: {has_focus}"));
+            ui.text(format!("Hovered: {hovered}"));
+            ui.text(format!("Clicked: {clicked}"));
 
             if has_focus {
                 if ui.is_key_pressed(imgui::Key::DownArrow) {
@@ -146,6 +154,9 @@ fn render_listbox_impl(
         items_strs.as_slice(),
         items_strs.len() as i32,
     );
+
+    let is_listbox_active = ui.is_item_active();
+    ui.text(format!("Listbox active: {is_listbox_active}"));
 
     log::trace!("{label} clicked: {clicked}");
 
