@@ -27,6 +27,7 @@ pub struct ImguiState {
     renderer: Renderer,
     clear_color: wgpu::Color,
     demo_open: bool,
+    limit_fps: bool,
     last_frame: Instant,
     last_cursor: Option<MouseCursor>,
     last_frame_measure_time: Instant,
@@ -78,7 +79,7 @@ fn main() {
     env_logger::init_from_env(Env::new().default_filter_or(log::Level::Info.as_str()));
 
     let event_loop = EventLoop::new().unwrap();
-    event_loop.set_control_flow(ControlFlow::Poll);
+    event_loop.set_control_flow(ControlFlow::Wait);
     let result = event_loop.run_app(&mut App::new());
 
     if let Err(e) = result {
@@ -168,7 +169,7 @@ impl AppWindow {
         const FONT_SIZE: f64 = 18.0;
         const OVERSAMPLE_H: i32 = 2;
         const OVERSAMPLE_V: i32 = 2;
-        const RASTERIZER_MULTIPLY: f32 = 1.5;
+        const RASTERIZER_MULTIPLY: f32 = 1.0;
 
         let font_size = (FONT_SIZE * self.hidpi_factor) as f32;
         context.io_mut().font_global_scale = (1.0 / self.hidpi_factor) as f32;
@@ -205,28 +206,6 @@ impl AppWindow {
             },
         ]);
 
-        // context.fonts().add_font(&[FontSource::DefaultFontData {
-        //     config: Some(imgui::FontConfig {
-        //         rasterizer_multiply: 1.5,
-        //         oversample_h: 8,
-        //         oversample_v: 8,
-        //         size_pixels: font_size,
-        //         ..Default::default()
-        //     }),
-        // }]);
-
-        // let font_size = (13.0 * self.hidpi_factor) as f32;
-        // context.io_mut().font_global_scale = (1.0 / self.hidpi_factor) as f32;
-
-        // context.fonts().add_font(&[FontSource::DefaultFontData {
-        //     config: Some(imgui::FontConfig {
-        //         oversample_h: 1,
-        //         pixel_snap_h: true,
-        //         size_pixels: font_size,
-        //         ..Default::default()
-        //     }),
-        // }]);
-
         let renderer_config = RendererConfig {
             texture_format: self.surface_desc.format,
             ..Default::default()
@@ -247,6 +226,7 @@ impl AppWindow {
                 a: 1.0,
             },
             demo_open: false,
+            limit_fps: false,
             last_frame,
             last_cursor: None,
             last_frame_measure_time: last_frame,
@@ -264,7 +244,9 @@ impl ApplicationHandler for App {
         log::debug!("resumed");
 
         self.reset_state();
-        self.window = Some(AppWindow::new(event_loop));
+
+        let app_window = AppWindow::new(event_loop);
+        self.window = Some(app_window);
 
         match files::read_directory(LEFT_PATH) {
             Ok(files) => self.left_files = files,
@@ -354,13 +336,39 @@ impl ApplicationHandler for App {
         );
     }
 
-    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         log::debug!("about_to_wait");
 
         let window = self.window.as_mut().unwrap();
         let imgui = window.imgui.as_mut().unwrap();
 
-        window.window.request_redraw();
+        let limit_fps = imgui.limit_fps;
+
+        // TODO: use this mechanism limit fps in idle application
+        if limit_fps {
+            let now = Instant::now();
+            let last_frame = imgui.last_frame;
+            let delta_time = now - last_frame;
+            let target_fps = 60.0;
+            let target_fps_s = 1.0 / target_fps;
+            let fps_100_duration = Duration::from_secs_f64(target_fps_s);
+
+            log::debug!("delta_time: {} micro s", delta_time.as_micros());
+
+            if delta_time > fps_100_duration {
+                log::debug!("request_redraw");
+                window.window.request_redraw();
+            } else {
+                let wait_for = fps_100_duration - delta_time;
+                // TODO: do not wait if wait_for is small
+                log::debug!("wait_for: {} mikro s", wait_for.as_micros());
+                event_loop.set_control_flow(ControlFlow::WaitUntil(now + wait_for));
+            }
+        } else {
+            log::debug!("request_redraw");
+            event_loop.set_control_flow(ControlFlow::Poll);
+            window.window.request_redraw();
+        }
 
         imgui.platform.handle_event::<()>(
             imgui.context.io_mut(),
@@ -368,32 +376,6 @@ impl ApplicationHandler for App {
             &Event::AboutToWait,
         );
     }
-
-    // fn device_event(
-    //     &mut self,
-    //     _event_loop: &ActiveEventLoop,
-    //     device_id: winit::event::DeviceId,
-    //     event: winit::event::DeviceEvent,
-    // ) {
-    //     let window = self.window.as_mut().unwrap();
-    //     let imgui = window.imgui.as_mut().unwrap();
-
-    //     match event {
-    //         winit::event::DeviceEvent::MouseWheel { delta } => {
-    //             log::info!("scroll event, {:#?}", delta);
-
-    //             // event_loop.listen_device_events();
-    //         }
-
-    //         _ => (),
-    //     }
-
-    //     imgui.platform.handle_event::<()>(
-    //         imgui.context.io_mut(),
-    //         &window.window,
-    //         &Event::DeviceEvent { device_id, event },
-    //     );
-    // }
 }
 
 impl App {
@@ -421,10 +403,8 @@ impl App {
         let imgui = window.imgui.as_mut().unwrap();
         let imgui_ptr = imgui as *mut ImguiState;
 
-        imgui
-            .context
-            .io_mut()
-            .update_delta_time(now - imgui.last_frame);
+        let delta_time = now - imgui.last_frame;
+        imgui.context.io_mut().update_delta_time(delta_time);
         imgui.last_frame = now;
 
         let frame = match window.surface.get_current_texture() {
@@ -490,6 +470,7 @@ impl App {
                             imgui_ptr,
                             half_screen,
                             main_window_h,
+                            LEFT_PATH,
                             &self.left_files,
                         );
                     }
