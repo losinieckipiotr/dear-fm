@@ -8,7 +8,7 @@ use std::{
 };
 use winit::{
     application::ApplicationHandler,
-    dpi::{LogicalSize, PhysicalSize},
+    dpi::LogicalSize,
     event::{Event, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     keyboard::{Key, KeyCode, NamedKey, PhysicalKey},
@@ -79,7 +79,11 @@ fn main() {
 
     let event_loop = EventLoop::new().unwrap();
     event_loop.set_control_flow(ControlFlow::Poll);
-    event_loop.run_app(&mut App::new()).unwrap();
+    let result = event_loop.run_app(&mut App::new());
+
+    if let Err(e) = result {
+        log::error!("Application error: {:#?}", e);
+    }
 }
 
 impl AppWindow {
@@ -90,6 +94,23 @@ impl AppWindow {
         window
     }
 
+    fn get_surface_desc(window: &Arc<Window>) -> wgpu::SurfaceConfiguration {
+        let size = window.inner_size();
+
+        log::debug!("AppWindow.configure_surface size: {:#?}", size);
+
+        wgpu::SurfaceConfiguration {
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            format: wgpu::TextureFormat::Bgra8UnormSrgb,
+            width: size.width,
+            height: size.height,
+            present_mode: wgpu::PresentMode::Fifo,
+            desired_maximum_frame_latency: 2,
+            alpha_mode: wgpu::CompositeAlphaMode::Auto,
+            view_formats: vec![wgpu::TextureFormat::Bgra8Unorm],
+        }
+    }
+
     fn setup_gpu(event_loop: &ActiveEventLoop) -> Self {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::PRIMARY,
@@ -97,7 +118,6 @@ impl AppWindow {
         });
 
         let monitor = event_loop.primary_monitor().unwrap();
-
         let size = monitor.size();
 
         let window = {
@@ -109,7 +129,6 @@ impl AppWindow {
             Arc::new(event_loop.create_window(attributes).unwrap())
         };
 
-        let size = window.inner_size();
         let hidpi_factor = window.scale_factor();
         let surface = instance.create_surface(window.clone()).unwrap();
 
@@ -123,17 +142,7 @@ impl AppWindow {
         let (device, queue) =
             block_on(adapter.request_device(&wgpu::DeviceDescriptor::default())).unwrap();
 
-        let surface_desc = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: wgpu::TextureFormat::Bgra8UnormSrgb,
-            width: size.width,
-            height: size.height,
-            present_mode: wgpu::PresentMode::Fifo,
-            desired_maximum_frame_latency: 2,
-            alpha_mode: wgpu::CompositeAlphaMode::Auto,
-            view_formats: vec![wgpu::TextureFormat::Bgra8Unorm],
-        };
-
+        let surface_desc = Self::get_surface_desc(&window);
         surface.configure(&device, &surface_desc);
 
         let imgui = None;
@@ -284,9 +293,9 @@ impl ApplicationHandler for App {
 
         match &event {
             WindowEvent::Resized(size) => {
-                log::debug!("WindowEvent::Resized");
+                log::debug!("WindowEvent::Resized size: {:#?}", size);
 
-                self.on_window_resized(size);
+                self.on_window_resized();
             }
             WindowEvent::RedrawRequested => {
                 log::debug!("WindowEvent::RedrawRequested");
@@ -388,21 +397,15 @@ impl ApplicationHandler for App {
 }
 
 impl App {
-    fn on_window_resized(&mut self, size: &PhysicalSize<u32>) {
+    fn on_window_resized(&mut self) {
         log::debug!("on_window_resized");
 
         let window = self.window.as_mut().unwrap();
+        let size = window.window.inner_size();
 
-        window.surface_desc = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: wgpu::TextureFormat::Bgra8UnormSrgb,
-            width: size.width,
-            height: size.height,
-            present_mode: wgpu::PresentMode::Fifo,
-            desired_maximum_frame_latency: 2,
-            alpha_mode: wgpu::CompositeAlphaMode::Auto,
-            view_formats: vec![wgpu::TextureFormat::Bgra8Unorm],
-        };
+        log::debug!("size.width: {}, size.height: {}", size.width, size.height);
+
+        window.surface_desc = AppWindow::get_surface_desc(&window.window);
 
         window
             .surface
