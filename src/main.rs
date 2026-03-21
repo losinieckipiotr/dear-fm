@@ -449,7 +449,8 @@ impl App {
         let dt = now - imgui.last_frame_measure_time;
 
         if dt > Duration::from_secs(1) {
-            // TODO: // ui.io().framerate
+            // TODO: cleanup frame rate
+            // let frame_rate2 = ui.io().framerate;
             let frame_rate = frame_count - imgui.last_measure_frame_count;
 
             imgui.frame_rate = frame_rate;
@@ -461,8 +462,8 @@ impl App {
             ui.show_demo_window(&mut imgui.demo_open);
         } else {
             ui.window("Main window")
-                .size([width, height], Condition::Always)
-                .position([0.0, 0.0], Condition::Always)
+                .size([width, height], Condition::Appearing)
+                .position([0.0, 0.0], Condition::Appearing)
                 .collapsible(false)
                 .resizable(false)
                 .movable(false)
@@ -470,6 +471,8 @@ impl App {
                 .scrollable(false)
                 .scroll_bar(false)
                 .build(|| {
+                    // TODO: when resigin window left size stays the same and
+                    // right side shrinks
                     let content_region_avail = ui.content_region_avail();
                     let half_screen = content_region_avail[0] / 2.0;
                     let main_window_h = content_region_avail[1];
