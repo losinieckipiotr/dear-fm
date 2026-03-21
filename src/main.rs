@@ -441,6 +441,8 @@ impl App {
             imgui.last_measure_frame_count = frame_count;
         }
 
+        let frame_rate = imgui.frame_rate;
+
         if imgui.demo_open {
             ui.show_demo_window(&mut imgui.demo_open);
         } else {
@@ -456,13 +458,15 @@ impl App {
                 .scroll_bar(false)
                 .build(|| {
                     let content_region_avail = ui.content_region_avail();
-
                     let half_screen = content_region_avail[0] / 2.0;
                     let main_window_h = content_region_avail[1];
 
                     if ui.is_key_pressed(imgui::Key::Tab) {
                         imgui.focused_window_left = !imgui.focused_window_left;
                     }
+
+                    ui.text(format!("Frame rate: {frame_rate} FPS"));
+                    ui.text(format!("Frame count: {frame_count}"));
 
                     unsafe {
                         render::render_left(
@@ -478,7 +482,13 @@ impl App {
                     ui.same_line();
 
                     unsafe {
-                        render::render_right(ui_ptr, imgui_ptr, main_window_h, &self.right_files);
+                        render::render_right(
+                            ui_ptr,
+                            imgui_ptr,
+                            main_window_h,
+                            RIGHT_PATH,
+                            &self.right_files,
+                        );
                     }
                 });
         }
