@@ -397,6 +397,7 @@ impl App {
         let dt = now - imgui.last_frame_measure_time;
 
         if dt > Duration::from_secs(1) {
+            // TODO: // ui.io().framerate
             let frame_rate = frame_count - imgui.last_measure_frame_count;
 
             imgui.frame_rate = frame_rate;
@@ -404,44 +405,44 @@ impl App {
             imgui.last_measure_frame_count = frame_count;
         }
 
-        ui.window("Main window")
-            .size([width, height], Condition::Always)
-            .position([0.0, 0.0], Condition::Always)
-            .collapsible(false)
-            .resizable(false)
-            .movable(false)
-            .title_bar(false)
-            .scrollable(false)
-            .scroll_bar(false)
-            .build(|| {
-                let content_region_avail = ui.content_region_avail();
-                let half_screen = content_region_avail[0] / 2.0;
-                let main_window_h = content_region_avail[1];
-
-                // TODO: handle click in windows?
-                if ui.is_key_pressed(imgui::Key::Tab) {
-                    imgui.focused_window_left = !imgui.focused_window_left;
-                }
-
-                unsafe {
-                    render::render_left(
-                        ui_ptr,
-                        imgui_ptr,
-                        half_screen,
-                        main_window_h,
-                        &self.left_files,
-                    );
-                }
-
-                ui.same_line();
-
-                unsafe {
-                    render::render_right(ui_ptr, imgui_ptr, main_window_h, &self.right_files);
-                }
-            });
-
         if imgui.demo_open {
             ui.show_demo_window(&mut imgui.demo_open);
+        } else {
+            ui.window("Main window")
+                .size([width, height], Condition::Always)
+                .position([0.0, 0.0], Condition::Always)
+                .collapsible(false)
+                .resizable(false)
+                .movable(false)
+                .title_bar(false)
+                .scrollable(false)
+                .scroll_bar(false)
+                .build(|| {
+                    let content_region_avail = ui.content_region_avail();
+                    let half_screen = content_region_avail[0] / 2.0;
+                    let main_window_h = content_region_avail[1];
+
+                    // TODO: handle click in windows?
+                    if ui.is_key_pressed(imgui::Key::Tab) {
+                        imgui.focused_window_left = !imgui.focused_window_left;
+                    }
+
+                    unsafe {
+                        render::render_left(
+                            ui_ptr,
+                            imgui_ptr,
+                            half_screen,
+                            main_window_h,
+                            &self.left_files,
+                        );
+                    }
+
+                    ui.same_line();
+
+                    unsafe {
+                        render::render_right(ui_ptr, imgui_ptr, main_window_h, &self.right_files);
+                    }
+                });
         }
 
         let mut encoder: wgpu::CommandEncoder = window

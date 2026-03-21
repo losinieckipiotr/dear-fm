@@ -735,6 +735,7 @@ dependencies = [
  "cfg-if",
  "chlorine",
  "mint",
+ "pkg-config",
 ]
 
 [[package]]

@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 imgui-wgpu = "0.27.0"
-imgui = { version = "0.12", features = ["docking"]}
+imgui = { version = "0.12", features = ["docking", "freetype"] }
 wgpu = "28"
 env_logger = "0.11"
 imgui-winit-support = "0.13"
