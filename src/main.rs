@@ -462,7 +462,8 @@ impl App {
             ui.show_demo_window(&mut imgui.demo_open);
         } else {
             ui.window("Main window")
-                .size([width, height], Condition::Appearing)
+                .size([width, height], Condition::Always)
+                .always_auto_resize(true)
                 .position([0.0, 0.0], Condition::Appearing)
                 .collapsible(false)
                 .resizable(false)
@@ -471,13 +472,11 @@ impl App {
                 .scrollable(false)
                 .scroll_bar(false)
                 .build(|| {
-                    // TODO: when resigin window left size stays the same and
-                    // right side shrinks
                     let content_region_avail = ui.content_region_avail();
+
                     let half_screen = content_region_avail[0] / 2.0;
                     let main_window_h = content_region_avail[1];
 
-                    // TODO: handle click in windows?
                     if ui.is_key_pressed(imgui::Key::Tab) {
                         imgui.focused_window_left = !imgui.focused_window_left;
                     }

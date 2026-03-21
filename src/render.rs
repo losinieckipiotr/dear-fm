@@ -65,14 +65,14 @@ fn render_left_impl(
             }
 
             if clicked {
-                log::trace!("left listbox clicked, focus left window");
+                log::debug!("left listbox clicked, focus left window");
                 imgui.focused_window_left = true;
             }
         });
 
     if ui.is_item_clicked() {
         {
-            log::trace!("left window clicked, focus left window");
+            log::debug!("left window clicked, focus left window");
             imgui.focused_window_left = true;
         }
     }
@@ -143,13 +143,13 @@ fn render_right_impl(
             }
 
             if clicked {
-                log::trace!("right listbox clicked, focus right window");
+                log::debug!("right listbox clicked, focus right window");
                 imgui.focused_window_left = false;
             }
         });
 
     if ui.is_item_clicked() {
-        log::trace!("right window clicked, focus right window");
+        log::debug!("right window clicked, focus right window");
         imgui.focused_window_left = false;
     }
 }
@@ -171,6 +171,7 @@ fn render_listbox_impl(
     // let current_item = &mut imgui.left_item_selected_idx;
     let items_strs: Vec<&str> = files.iter().map(|i| i.as_str()).collect();
 
+    // TODO: scrolling to selectet item when using keyboard
     imgui::Ui::set_next_item_width(ui, -1.0);
     let label = "##listbox";
     let clicked = ui.list_box(
@@ -184,7 +185,7 @@ fn render_listbox_impl(
     ui.text(format!("Listbox active: {is_listbox_active}"));
 
     if clicked {
-        log::trace!("{label} clicked: {clicked}");
+        log::debug!("{label} clicked: {clicked}");
     }
 
     // ui.text(format!("clicked: {clicked}"));
