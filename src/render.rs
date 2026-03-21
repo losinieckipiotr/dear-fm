@@ -2,36 +2,46 @@ use crate::ImguiState;
 
 use imgui::*;
 
-pub unsafe fn render_left(
+pub unsafe fn render_files_window(
     ui_ptr: *mut Ui,
     imgui_ptr: *mut ImguiState,
-    half_screen: f32,
-    main_window_h: f32,
+    width: f32,
+    height: f32,
+    is_left: bool,
     path: &str,
     files: &Vec<String>,
 ) {
     unsafe {
         let ui = ui_ptr.as_mut().unwrap();
         let imgui = imgui_ptr.as_mut().unwrap();
-        let focused = (*imgui_ptr).focused_window_left;
 
-        render_left_impl(ui, imgui, half_screen, main_window_h, path, files, focused);
+        render_window_impl(ui, imgui, width, height, is_left, path, files);
     }
 }
 
-fn render_left_impl(
+fn render_window_impl(
     ui: &mut Ui,
     imgui: &mut ImguiState,
-    half_screen: f32,
-    main_window_h: f32,
+    width: f32,
+    height: f32,
+    is_left: bool,
     path: &str,
     files: &Vec<String>,
-    focused: bool,
 ) {
-    let ui_ptr = ui as *mut Ui;
+    let ui_ptr: *mut Ui = ui as *mut Ui;
 
-    ui.child_window("left")
-        .size([half_screen, main_window_h])
+    let side = match is_left {
+        true => "left",
+        false => "right",
+    };
+    let window_name = format!("{side} window");
+    let focused = match is_left {
+        true => imgui.focused_window_left,
+        false => !imgui.focused_window_left,
+    };
+
+    ui.child_window(window_name)
+        .size([width, height])
         .border(true)
         .focused(focused)
         .build(|| {
@@ -40,23 +50,31 @@ fn render_left_impl(
 
             ui.text(format!("Has focus: {has_focus}"));
 
+            let selected_item_ref = match is_left {
+                true => &mut imgui.left_item_selected_idx,
+                false => &mut imgui.right_item_selected_idx,
+            };
+
             if has_focus {
                 if ui.is_key_pressed(imgui::Key::DownArrow) {
-                    let next_item = imgui.left_item_selected_idx + 1;
+                    let next_item = *selected_item_ref + 1;
                     if next_item < files.len() as i32 {
-                        imgui.left_item_selected_idx = next_item
+                        *selected_item_ref = next_item
                     }
                 }
                 if ui.is_key_pressed(imgui::Key::UpArrow) {
-                    let prev_item = imgui.left_item_selected_idx - 1;
+                    let prev_item = *selected_item_ref - 1;
                     if prev_item >= 0 {
-                        imgui.left_item_selected_idx = prev_item
+                        *selected_item_ref = prev_item
                     }
                 }
             }
 
             let clicked;
-            let current_item = &mut imgui.left_item_selected_idx;
+            let current_item = match is_left {
+                true => &mut imgui.left_item_selected_idx,
+                false => &mut imgui.right_item_selected_idx,
+            };
 
             ui.text(format!("Path: {path}"));
 
@@ -65,89 +83,14 @@ fn render_left_impl(
             }
 
             if clicked {
-                log::info!("left table clicked, focus left window");
-                imgui.focused_window_left = true;
+                log::debug!("{side} table clicked");
+                imgui.focused_window_left = is_left
             }
         });
 
     if ui.is_item_clicked() {
-        {
-            log::debug!("left window clicked, focus left window");
-            imgui.focused_window_left = true;
-        }
-    }
-}
-
-pub unsafe fn render_right(
-    ui: *mut Ui,
-    imgui_ptr: *mut ImguiState,
-    main_window_h: f32,
-    path: &str,
-    files: &Vec<String>,
-) {
-    unsafe {
-        let ui = ui.as_mut().unwrap();
-        let imgui = imgui_ptr.as_mut().unwrap();
-        let focused = !(*imgui_ptr).focused_window_left;
-
-        render_right_impl(ui, imgui, main_window_h, path, files, focused);
-    }
-}
-
-fn render_right_impl(
-    ui: &mut Ui,
-    imgui: &mut ImguiState,
-    main_window_h: f32,
-    path: &str,
-    files: &Vec<String>,
-    focused: bool,
-) {
-    let ui_ptr = ui as *mut Ui;
-
-    ui.child_window("right")
-        .size([0., main_window_h])
-        .border(true)
-        .focused(focused)
-        .build(|| {
-            let has_focus =
-                ui.is_window_focused_with_flags(imgui::WindowFocusedFlags::CHILD_WINDOWS);
-
-            ui.text(format!("Has focus: {has_focus}"));
-
-            if has_focus {
-                if ui.is_key_pressed(imgui::Key::DownArrow) {
-                    let next_item = imgui.right_item_selected_idx + 1;
-                    if next_item < files.len() as i32 {
-                        imgui.right_item_selected_idx = next_item
-                    }
-                }
-
-                if ui.is_key_pressed(imgui::Key::UpArrow) {
-                    let prev_item = imgui.right_item_selected_idx - 1;
-                    if prev_item >= 0 {
-                        imgui.right_item_selected_idx = prev_item
-                    }
-                }
-            }
-
-            let clicked;
-            let current_item = &mut imgui.right_item_selected_idx;
-
-            ui.text(format!("Path: {path}"));
-
-            unsafe {
-                clicked = render_table(ui_ptr, files, current_item);
-            }
-
-            if clicked {
-                log::debug!("right table clicked, focus right window");
-                imgui.focused_window_left = false;
-            }
-        });
-
-    if ui.is_item_clicked() {
-        log::debug!("right window clicked, focus right window");
-        imgui.focused_window_left = false;
+        log::debug!("{side} window clicked");
+        imgui.focused_window_left = is_left;
     }
 }
 
@@ -162,7 +105,7 @@ unsafe fn render_table(ui: *mut Ui, files: &Vec<String>, current_item: &mut i32)
 fn render_table_impl(ui: &mut Ui, files: &Vec<String>, current_item: &mut i32) -> bool {
     let table_token = ui
         .begin_table_with_flags(
-            "table left",
+            "table",
             2,
             TableFlags::SORTABLE | TableFlags::RESIZABLE | TableFlags::ROW_BG,
         )

@@ -469,11 +469,12 @@ impl App {
                     ui.text(format!("Frame count: {frame_count}"));
 
                     unsafe {
-                        render::render_left(
+                        render::render_files_window(
                             ui_ptr,
                             imgui_ptr,
                             half_screen,
                             main_window_h,
+                            true,
                             LEFT_PATH,
                             &self.left_files,
                         );
@@ -482,10 +483,12 @@ impl App {
                     ui.same_line();
 
                     unsafe {
-                        render::render_right(
+                        render::render_files_window(
                             ui_ptr,
                             imgui_ptr,
+                            0.0,
                             main_window_h,
+                            false,
                             RIGHT_PATH,
                             &self.right_files,
                         );
