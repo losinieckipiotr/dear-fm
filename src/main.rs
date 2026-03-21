@@ -71,6 +71,7 @@ impl App {
 
 const LEFT_PATH: &str = "/";
 const RIGHT_PATH: &str = "/Users/piotrlosiniecki";
+// crashes with bigger value?
 
 fn main() {
     // env_logger::init();
@@ -154,17 +155,68 @@ impl AppWindow {
         platform.attach_window(context.io_mut(), &self.window, HiDpiMode::Default);
         context.set_ini_filename(None);
 
-        let font_size = (13.0 * self.hidpi_factor) as f32;
+        // may crash for too big font size and high oversampling, probably because of GPU memory limits?
+        const FONT_SIZE: f64 = 18.0;
+        const OVERSAMPLE_H: i32 = 2;
+        const OVERSAMPLE_V: i32 = 2;
+        const RASTERIZER_MULTIPLY: f32 = 1.5;
+
+        let font_size = (FONT_SIZE * self.hidpi_factor) as f32;
         context.io_mut().font_global_scale = (1.0 / self.hidpi_factor) as f32;
 
-        context.fonts().add_font(&[FontSource::DefaultFontData {
-            config: Some(imgui::FontConfig {
-                oversample_h: 1,
-                pixel_snap_h: true,
+        context.fonts().add_font(&[
+            FontSource::TtfData {
+                data: include_bytes!("../resources/Roboto-Regular.ttf"),
                 size_pixels: font_size,
-                ..Default::default()
-            }),
-        }]);
+                config: Some(FontConfig {
+                    // As imgui-glium-renderer isn't gamma-correct with
+                    // it's font rendering, we apply an arbitrary
+                    // multiplier to make the font a bit "heavier". With
+                    // default imgui-glow-renderer this is unnecessary.
+                    rasterizer_multiply: RASTERIZER_MULTIPLY,
+                    // Oversampling font helps improve text rendering at
+                    // expense of larger font atlas texture.
+                    oversample_h: OVERSAMPLE_H,
+                    oversample_v: OVERSAMPLE_V,
+                    ..FontConfig::default()
+                }),
+            },
+            FontSource::TtfData {
+                data: include_bytes!("../resources/mplus-1p-regular.ttf"),
+                size_pixels: font_size,
+                config: Some(FontConfig {
+                    // Oversampling font helps improve text rendering at
+                    // expense of larger font atlas texture.
+                    oversample_h: 4,
+                    oversample_v: 4,
+                    // Range of glyphs to rasterize
+                    glyph_ranges: FontGlyphRanges::japanese(),
+                    ..FontConfig::default()
+                }),
+            },
+        ]);
+
+        // context.fonts().add_font(&[FontSource::DefaultFontData {
+        //     config: Some(imgui::FontConfig {
+        //         rasterizer_multiply: 1.5,
+        //         oversample_h: 8,
+        //         oversample_v: 8,
+        //         size_pixels: font_size,
+        //         ..Default::default()
+        //     }),
+        // }]);
+
+        // let font_size = (13.0 * self.hidpi_factor) as f32;
+        // context.io_mut().font_global_scale = (1.0 / self.hidpi_factor) as f32;
+
+        // context.fonts().add_font(&[FontSource::DefaultFontData {
+        //     config: Some(imgui::FontConfig {
+        //         oversample_h: 1,
+        //         pixel_snap_h: true,
+        //         size_pixels: font_size,
+        //         ..Default::default()
+        //     }),
+        // }]);
 
         let renderer_config = RendererConfig {
             texture_format: self.surface_desc.format,
