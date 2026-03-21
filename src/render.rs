@@ -57,12 +57,25 @@ fn render_left_impl(
                 }
             }
 
+            let clicked;
             let current_item = &mut imgui.left_item_selected_idx;
 
             unsafe {
-                render_listbox(ui_ptr, files, current_item);
+                clicked = render_listbox(ui_ptr, files, current_item);
+            }
+
+            if clicked {
+                log::trace!("left listbox clicked, focus left window");
+                imgui.focused_window_left = true;
             }
         });
+
+    if ui.is_item_clicked() {
+        {
+            log::trace!("left window clicked, focus left window");
+            imgui.focused_window_left = true;
+        }
+    }
 }
 
 pub unsafe fn render_right(
@@ -122,18 +135,30 @@ fn render_right_impl(
                 }
             }
 
+            let clicked;
             let current_item = &mut imgui.right_item_selected_idx;
 
             unsafe {
-                render_listbox(ui_ptr, files, current_item);
+                clicked = render_listbox(ui_ptr, files, current_item);
+            }
+
+            if clicked {
+                log::trace!("right listbox clicked, focus right window");
+                imgui.focused_window_left = false;
             }
         });
+
+    if ui.is_item_clicked() {
+        log::trace!("right window clicked, focus right window");
+        imgui.focused_window_left = false;
+    }
 }
 
-pub unsafe fn render_listbox(ui: *mut Ui, files: &Vec<String>, current_item: &mut i32) {
+/// Renders listbox and some debug info about it. Returns true if listbox was clicked.
+pub unsafe fn render_listbox(ui: *mut Ui, files: &Vec<String>, current_item: &mut i32) -> bool {
     unsafe {
         let ui = ui.as_mut().unwrap();
-        render_listbox_impl(ui, files, current_item);
+        return render_listbox_impl(ui, files, current_item);
     }
 }
 
@@ -142,12 +167,12 @@ fn render_listbox_impl(
     // imgui: &mut ImguiState,
     files: &Vec<String>,
     current_item: &mut i32,
-) {
+) -> bool {
     // let current_item = &mut imgui.left_item_selected_idx;
     let items_strs: Vec<&str> = files.iter().map(|i| i.as_str()).collect();
 
     imgui::Ui::set_next_item_width(ui, -1.0);
-    let label = "##left listbox";
+    let label = "##listbox";
     let clicked = ui.list_box(
         label,
         current_item,
@@ -158,8 +183,12 @@ fn render_listbox_impl(
     let is_listbox_active = ui.is_item_active();
     ui.text(format!("Listbox active: {is_listbox_active}"));
 
-    log::trace!("{label} clicked: {clicked}");
+    if clicked {
+        log::trace!("{label} clicked: {clicked}");
+    }
 
     // ui.text(format!("clicked: {clicked}"));
     ui.text(format!("current_item: {current_item}"));
+
+    return clicked;
 }
