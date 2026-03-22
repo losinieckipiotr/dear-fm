@@ -1,41 +1,68 @@
-use std::path::PathBuf;
+use std::{cell::RefCell, path::PathBuf, rc::Rc};
 
-use crate::ImguiState;
+use crate::TestState;
 
 use imgui::*;
 
 struct RenderTableResult {
     table_clicked: bool,
     to_open_idx: Option<usize>,
+    current_item: i32,
+}
+
+enum Side {
+    Left,
+    Right,
+}
+
+impl Side {
+    fn as_str(&self) -> &'static str {
+        match self {
+            Self::Left => "left",
+            Self::Right => "right",
+        }
+    }
+
+    fn from_bool(is_left: bool) -> Side {
+        match is_left {
+            true => Self::Left,
+            false => Self::Right,
+        }
+    }
 }
 
 /// Renders files window (left or right).
-pub unsafe fn render_files_window(
-    ui_ptr: *mut Ui,
-    imgui_ptr: *mut ImguiState,
+pub fn render_files_window(
+    ui: &Ui,
+    test_state: Rc<RefCell<TestState>>,
     width: f32,
     height: f32,
     is_left: bool,
-    path: &str,
-    files: &Vec<String>,
+    // path: &str,
+    // files: &Vec<String>,
 ) -> Option<PathBuf> {
-    let ui: &mut Ui;
-    let imgui: &mut ImguiState;
+    let side = Side::from_bool(is_left);
+    let window_name: String = format!("{} window", side.as_str());
+    let focused: bool;
+    let path: String;
+    let files: Vec<String>;
+    // TODO: optimize
+    {
+        let state = test_state.borrow();
 
-    unsafe {
-        ui = ui_ptr.as_mut().unwrap();
-        imgui = imgui_ptr.as_mut().unwrap();
+        (focused, path, files) = match side {
+            Side::Left => (
+                state.focused_window_left,
+                state.app_files.left_path.clone(),
+                state.app_files.left_files.clone(),
+            ),
+            Side::Right => (
+                !state.focused_window_left,
+                state.app_files.right_path.clone(),
+                state.app_files.right_files.clone(),
+            ),
+        };
     }
-
-    let side = match is_left {
-        true => "left",
-        false => "right",
-    };
-    let window_name = format!("{side} window");
-    let focused = match is_left {
-        true => imgui.focused_window_left,
-        false => !imgui.focused_window_left,
-    };
 
     let mut path_to_open_option: Option<PathBuf> = None;
 
@@ -44,77 +71,90 @@ pub unsafe fn render_files_window(
         .border(true)
         .focused(focused)
         .build(|| {
-            let has_focus = ui.is_window_focused_with_flags(
-                imgui::WindowFocusedFlags::CHILD_WINDOWS,
-            );
+            let render_table_result: RenderTableResult;
+            let current_item: i32;
+            // TODO: move keyboard handling also to rendering table?
+            {
+                let mut state = test_state.borrow_mut();
 
-            ui.text(format!("Has focus: {has_focus}"));
+                let has_focus = ui.is_window_focused_with_flags(
+                    imgui::WindowFocusedFlags::CHILD_WINDOWS,
+                );
 
-            let selected_item_ref = match is_left {
-                true => &mut imgui.left_item_selected_idx,
-                false => &mut imgui.right_item_selected_idx,
-            };
+                ui.text(format!("Has focus: {has_focus}"));
 
-            if has_focus {
-                if ui.is_key_pressed(imgui::Key::DownArrow) {
-                    let next_item = *selected_item_ref + 1;
-                    if next_item < files.len() as i32 {
-                        *selected_item_ref = next_item
+                let selected_item_ref = match is_left {
+                    true => &mut state.left_item_selected_idx,
+                    false => &mut state.right_item_selected_idx,
+                };
+
+                if has_focus {
+                    if ui.is_key_pressed(imgui::Key::DownArrow) {
+                        let next_item = *selected_item_ref + 1;
+                        if next_item < files.len() as i32 {
+                            *selected_item_ref = next_item
+                        }
+                    }
+                    if ui.is_key_pressed(imgui::Key::UpArrow) {
+                        let prev_item = *selected_item_ref - 1;
+                        if prev_item >= 0 {
+                            *selected_item_ref = prev_item
+                        }
                     }
                 }
-                if ui.is_key_pressed(imgui::Key::UpArrow) {
-                    let prev_item = *selected_item_ref - 1;
-                    if prev_item >= 0 {
-                        *selected_item_ref = prev_item
-                    }
-                }
+
+                current_item = *selected_item_ref;
             }
-
-            let render_table_result;
-            let current_item = match is_left {
-                true => &mut imgui.left_item_selected_idx,
-                false => &mut imgui.right_item_selected_idx,
-            };
 
             ui.text(format!("Path: {path}"));
 
-            unsafe {
-                render_table_result = render_table(ui_ptr, files, current_item);
-            }
+            render_table_result =
+                render_table(ui, test_state.clone(), &files, current_item);
 
-            if render_table_result.table_clicked {
-                log::debug!("{side} table clicked");
-                imgui.focused_window_left = is_left
-            }
+            {
+                let mut state = test_state.borrow_mut();
 
-            if let Some(idx) = render_table_result.to_open_idx {
-                let element_to_open = &files[idx];
-                let path_to_open: PathBuf =
-                    [path, element_to_open].iter().collect();
+                let selected_item_ref = match is_left {
+                    true => &mut state.left_item_selected_idx,
+                    false => &mut state.right_item_selected_idx,
+                };
 
-                path_to_open_option = Some(path_to_open);
+                *selected_item_ref = render_table_result.current_item;
+
+                if render_table_result.table_clicked {
+                    log::debug!("{} table clicked", side.as_str());
+                    state.focused_window_left = is_left
+                }
+
+                if let Some(idx) = render_table_result.to_open_idx {
+                    let element_to_open = &files[idx];
+                    let path_to_open: PathBuf =
+                        [&path, element_to_open].iter().collect();
+
+                    path_to_open_option = Some(path_to_open);
+                }
             }
         });
 
     if ui.is_item_clicked() {
-        log::debug!("{side} window clicked");
-        imgui.focused_window_left = is_left;
+        log::debug!("{} window clicked", side.as_str());
+
+        let mut state = test_state.borrow_mut();
+
+        state.focused_window_left = is_left;
     }
 
     path_to_open_option
 }
 
 /// Renders table and some debug info about it.
-unsafe fn render_table(
-    ui_ptr: *mut Ui,
+fn render_table(
+    ui: &Ui,
+    _test_state: Rc<RefCell<TestState>>,
     files: &Vec<String>,
-    current_item: &mut i32,
+    current_item: i32,
 ) -> RenderTableResult {
-    let ui: &mut Ui;
-
-    unsafe {
-        ui = ui_ptr.as_mut().unwrap();
-    }
+    let mut current_item = current_item;
 
     let table_token = ui
         .begin_table_with_flags(
@@ -132,7 +172,7 @@ unsafe fn render_table(
 
         let clicked = ui
             .selectable_config(format!("{idx}"))
-            .selected(idx == (*current_item) as usize)
+            .selected(idx == current_item as usize)
             .flags(
                 SelectableFlags::SPAN_ALL_COLUMNS
                     | SelectableFlags::ALLOW_DOUBLE_CLICK,
@@ -145,7 +185,7 @@ unsafe fn render_table(
                 double_clicked_idx = Some(idx);
             }
 
-            *current_item = idx as i32;
+            current_item = idx as i32;
             any_row_clicked = true;
         }
 
@@ -157,8 +197,16 @@ unsafe fn render_table(
 
     ui.text(format!("current_item: {current_item}"));
 
+    // let test_state = test_state.borrow();
+    // let value = test_state.demo_open;
+    // let flag = test_state.frame_rate;
+
+    // ui.text(format!("demo_open: {value}"));
+    // ui.text(format!("frame_rate: {flag}"));
+
     RenderTableResult {
         table_clicked: any_row_clicked,
         to_open_idx: double_clicked_idx,
+        current_item,
     }
 }

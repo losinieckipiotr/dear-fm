@@ -3,7 +3,9 @@ use imgui_wgpu::{Renderer, RendererConfig};
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
 use pollster::block_on;
 use std::{
+    cell::RefCell,
     path::PathBuf,
+    rc::Rc,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -24,6 +26,7 @@ use crate::files::read_directory;
 mod files;
 mod render;
 
+#[derive(Debug)]
 struct AppFiles {
     left_path: String,
     right_path: String,
@@ -31,11 +34,8 @@ struct AppFiles {
     right_files: Vec<String>,
 }
 
-pub struct ImguiState {
-    context: imgui::Context,
-    platform: WinitPlatform,
-    renderer: Renderer,
-    clear_color: wgpu::Color,
+#[derive(Debug)]
+struct TestState {
     demo_open: bool,
     limit_fps: bool,
     last_frame: Instant,
@@ -50,6 +50,13 @@ pub struct ImguiState {
     app_files: AppFiles,
 }
 
+pub struct ImguiState {
+    context: imgui::Context,
+    platform: WinitPlatform,
+    renderer: Renderer,
+    clear_color: wgpu::Color,
+}
+
 struct AppWindow {
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -58,6 +65,7 @@ struct AppWindow {
     surface: wgpu::Surface<'static>,
     hidpi_factor: f64,
     imgui: Option<ImguiState>,
+    test_state: Rc<RefCell<TestState>>,
 }
 
 struct App {
@@ -120,6 +128,7 @@ impl AppWindow {
         }
     }
 
+    /// TODO: refactor, it also setups app state
     fn setup_gpu(event_loop: &ActiveEventLoop) -> Self {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::PRIMARY,
@@ -157,6 +166,8 @@ impl AppWindow {
         let surface_desc = Self::get_surface_desc(&window);
         surface.configure(&device, &surface_desc);
 
+        let last_frame = Instant::now();
+
         let imgui = None;
         Self {
             device,
@@ -166,6 +177,24 @@ impl AppWindow {
             surface,
             hidpi_factor,
             imgui,
+            test_state: Rc::new(RefCell::new(TestState {
+                demo_open: false,
+                limit_fps: true,
+                last_frame,
+                last_cursor: None,
+                last_frame_measure_time: last_frame,
+                last_measure_frame_count: 0,
+                frame_rate: 0,
+                left_item_selected_idx: 0,
+                right_item_selected_idx: 0,
+                focused_window_left: true,
+                app_files: AppFiles {
+                    left_path: String::from("/Users/piotrlosiniecki"),
+                    right_path: String::from("/Users/piotrlosiniecki/Projects"),
+                    left_files: Vec::new(),
+                    right_files: Vec::new(),
+                },
+            })),
         }
     }
 
@@ -232,7 +261,6 @@ impl AppWindow {
             &self.queue,
             renderer_config,
         );
-        let last_frame = Instant::now();
 
         self.imgui = Some(ImguiState {
             context,
@@ -243,22 +271,6 @@ impl AppWindow {
                 g: 0.2,
                 b: 0.3,
                 a: 1.0,
-            },
-            demo_open: false,
-            limit_fps: true,
-            last_frame,
-            last_cursor: None,
-            last_frame_measure_time: last_frame,
-            last_measure_frame_count: 0,
-            frame_rate: 0,
-            left_item_selected_idx: 0,
-            right_item_selected_idx: 0,
-            focused_window_left: true,
-            app_files: AppFiles {
-                left_path: String::from("/Users/piotrlosiniecki"),
-                right_path: String::from("/Users/piotrlosiniecki/Projects"),
-                left_files: Vec::new(),
-                right_files: Vec::new(),
             },
         })
     }
@@ -271,16 +283,18 @@ impl ApplicationHandler for App {
         self.reset_state();
 
         let app_window = AppWindow::new(event_loop);
-        self.app_window = Some(app_window);
 
         // TODO: move reading file system to another thread
+        {
+            let mut test_state: std::cell::RefMut<'_, TestState> =
+                app_window.test_state.borrow_mut();
+            test_state.app_files.left_files =
+                read_directory(&test_state.app_files.left_path);
+            test_state.app_files.right_files =
+                read_directory(&test_state.app_files.right_path);
+        }
 
-        let window = self.app_window.as_mut().unwrap();
-        let imgui = window.imgui.as_mut().unwrap();
-        let app_files = &mut imgui.app_files;
-
-        app_files.left_files = read_directory(&app_files.left_path);
-        app_files.right_files = read_directory(&app_files.right_path);
+        self.app_window = Some(app_window);
     }
 
     fn window_event(
@@ -321,7 +335,7 @@ impl ApplicationHandler for App {
             WindowEvent::KeyboardInput { event, .. } => {
                 log::debug!("WindowEvent::KeyboardInput");
 
-                let app_window = self.app_window.as_mut().unwrap();
+                let app_window = self.app_window.as_ref().unwrap();
 
                 match event.physical_key {
                     PhysicalKey::Code(KeyCode::KeyF) => {
@@ -413,12 +427,13 @@ impl ApplicationHandler for App {
         let app_window = self.app_window.as_mut().unwrap();
         let imgui = app_window.imgui.as_mut().unwrap();
 
-        let limit_fps = imgui.limit_fps;
+        let test_state: std::cell::RefMut<'_, TestState> =
+            app_window.test_state.borrow_mut();
 
         // TODO: use this mechanism limit fps in idle application
-        if limit_fps {
+        if test_state.limit_fps {
             let now = Instant::now();
-            let last_frame = imgui.last_frame;
+            let last_frame = test_state.last_frame;
             let delta_time = now - last_frame;
             let target_fps = 30.0;
             let target_fps_s = 1.0 / target_fps;
@@ -456,11 +471,16 @@ impl App {
 
         let app_window = self.app_window.as_mut().unwrap();
         let imgui = app_window.imgui.as_mut().unwrap();
-        let imgui_ptr = imgui as *mut ImguiState;
+        // let imgui_ptr = imgui as *mut ImguiState;
 
-        let delta_time = now - imgui.last_frame;
-        imgui.context.io_mut().update_delta_time(delta_time);
-        imgui.last_frame = now;
+        {
+            let mut test_state: std::cell::RefMut<'_, TestState> =
+                app_window.test_state.borrow_mut();
+
+            let delta_time = now - test_state.last_frame;
+            imgui.context.io_mut().update_delta_time(delta_time);
+            test_state.last_frame = now;
+        }
 
         let frame = match app_window.surface.get_current_texture() {
             Ok(frame) => frame,
@@ -476,7 +496,6 @@ impl App {
             .prepare_frame(imgui.context.io_mut(), &app_window.window)
             .expect("Failed to prepare frame");
         let ui = imgui.context.frame();
-        let ui_ptr = ui as *mut Ui;
 
         let window = &app_window.window;
         let inner_size = window.inner_size();
@@ -484,22 +503,29 @@ impl App {
         let width = ((inner_size.width as f64) / scale) as f32;
         let height = (inner_size.height as f64 / scale) as f32;
 
-        let dt = now - imgui.last_frame_measure_time;
+        // let test_state = &app_window.test_state;
+        let mut demo_open: bool;
+        {
+            let mut test_state = app_window.test_state.borrow_mut();
+            let dt = now - test_state.last_frame_measure_time;
 
-        if dt > Duration::from_secs(1) {
-            // TODO: cleanup frame rate
-            // let frame_rate2 = ui.io().framerate;
-            let frame_rate = frame_count - imgui.last_measure_frame_count;
+            if dt > Duration::from_secs(1) {
+                // TODO: cleanup frame rate
+                // let frame_rate2 = ui.io().framerate;
+                let frame_rate =
+                    frame_count - test_state.last_measure_frame_count;
 
-            imgui.frame_rate = frame_rate;
-            imgui.last_frame_measure_time = now;
-            imgui.last_measure_frame_count = frame_count;
+                test_state.frame_rate = frame_rate;
+                test_state.last_frame_measure_time = now;
+                test_state.last_measure_frame_count = frame_count;
+            }
+
+            // let frame_rate = test_state.frame_rate;
+            demo_open = test_state.demo_open;
         }
 
-        let frame_rate = imgui.frame_rate;
-
-        if imgui.demo_open {
-            ui.show_demo_window(&mut imgui.demo_open);
+        if demo_open {
+            ui.show_demo_window(&mut demo_open);
         } else {
             ui.window("main_window")
                 .size([width, height], Condition::Always)
@@ -512,12 +538,21 @@ impl App {
                 .scrollable(false)
                 .scroll_bar(false)
                 .build(|| {
-                    if ui.is_key_pressed(imgui::Key::Tab) {
-                        imgui.focused_window_left = !imgui.focused_window_left;
-                    }
+                    {
+                        let mut test_state = app_window.test_state.borrow_mut();
 
-                    ui.text(format!("Frame rate: {frame_rate} FPS"));
-                    ui.text(format!("Frame count: {frame_count}"));
+                        if ui.is_key_pressed(imgui::Key::Tab) {
+                            test_state.focused_window_left =
+                                !test_state.focused_window_left;
+                        }
+                    }
+                    {
+                        let test_state = app_window.test_state.borrow();
+                        let frame_rate = test_state.frame_rate;
+
+                        ui.text(format!("Frame rate: {frame_rate} FPS",));
+                        ui.text(format!("Frame count: {frame_count}"));
+                    }
 
                     let content_region_avail = ui.content_region_avail();
                     let half_screen = content_region_avail[0] / 2.0;
@@ -525,17 +560,13 @@ impl App {
 
                     let mut path_to_open_option: Option<PathBuf>;
 
-                    unsafe {
-                        path_to_open_option = render::render_files_window(
-                            ui_ptr,
-                            imgui_ptr,
-                            half_screen,
-                            main_window_h,
-                            true,
-                            &imgui.app_files.left_path,
-                            &imgui.app_files.left_files,
-                        );
-                    }
+                    path_to_open_option = render::render_files_window(
+                        ui,
+                        app_window.test_state.clone(),
+                        half_screen,
+                        main_window_h,
+                        true,
+                    );
 
                     if let Some(path_to_open) = path_to_open_option {
                         log::info!(
@@ -544,12 +575,16 @@ impl App {
                         );
 
                         if files::is_dir(&path_to_open) {
+                            let mut test_state =
+                                app_window.test_state.borrow_mut();
+
                             let path_str =
                                 path_to_open.as_path().to_str().unwrap();
                             let files = files::read_directory(path_str);
 
-                            imgui.app_files.left_path = path_str.to_string();
-                            imgui.app_files.left_files = files;
+                            test_state.app_files.left_path =
+                                path_str.to_string();
+                            test_state.app_files.left_files = files;
 
                             app_window.window.request_redraw();
                         }
@@ -557,17 +592,13 @@ impl App {
 
                     ui.same_line();
 
-                    unsafe {
-                        path_to_open_option = render::render_files_window(
-                            ui_ptr,
-                            imgui_ptr,
-                            0.0,
-                            main_window_h,
-                            false,
-                            &imgui.app_files.right_path,
-                            &imgui.app_files.right_files,
-                        );
-                    }
+                    path_to_open_option = render::render_files_window(
+                        ui,
+                        app_window.test_state.clone(),
+                        0.0,
+                        main_window_h,
+                        false,
+                    );
 
                     if let Some(path_to_open) = path_to_open_option {
                         log::info!(
@@ -576,12 +607,16 @@ impl App {
                         );
 
                         if files::is_dir(&path_to_open) {
+                            let mut test_state =
+                                app_window.test_state.borrow_mut();
+
                             let path_str =
                                 path_to_open.as_path().to_str().unwrap();
                             let files = files::read_directory(path_str);
 
-                            imgui.app_files.right_path = path_str.to_string();
-                            imgui.app_files.right_files = files;
+                            test_state.app_files.right_path =
+                                path_str.to_string();
+                            test_state.app_files.right_files = files;
 
                             app_window.window.request_redraw();
                         }
@@ -594,9 +629,13 @@ impl App {
                 &wgpu::CommandEncoderDescriptor { label: None },
             );
 
-        if imgui.last_cursor != ui.mouse_cursor() {
-            imgui.last_cursor = ui.mouse_cursor();
-            imgui.platform.prepare_render(&ui, &app_window.window);
+        {
+            let mut test_state = app_window.test_state.borrow_mut();
+
+            if test_state.last_cursor != ui.mouse_cursor() {
+                test_state.last_cursor = ui.mouse_cursor();
+                imgui.platform.prepare_render(&ui, &app_window.window);
+            }
         }
 
         let view = frame
