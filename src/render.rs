@@ -1,7 +1,15 @@
+use std::path::PathBuf;
+
 use crate::ImguiState;
 
 use imgui::*;
 
+struct RenderTableResult {
+    table_clicked: bool,
+    to_open_idx: Option<usize>,
+}
+
+/// Renders files window (left or right).
 pub unsafe fn render_files_window(
     ui_ptr: *mut Ui,
     imgui_ptr: *mut ImguiState,
@@ -10,25 +18,14 @@ pub unsafe fn render_files_window(
     is_left: bool,
     path: &str,
     files: &Vec<String>,
-) {
+) -> Option<PathBuf> {
+    let ui: &mut Ui;
+    let imgui: &mut ImguiState;
+
     unsafe {
-        let ui = ui_ptr.as_mut().unwrap();
-        let imgui = imgui_ptr.as_mut().unwrap();
-
-        render_window_impl(ui, imgui, width, height, is_left, path, files);
+        ui = ui_ptr.as_mut().unwrap();
+        imgui = imgui_ptr.as_mut().unwrap();
     }
-}
-
-fn render_window_impl(
-    ui: &mut Ui,
-    imgui: &mut ImguiState,
-    width: f32,
-    height: f32,
-    is_left: bool,
-    path: &str,
-    files: &Vec<String>,
-) {
-    let ui_ptr: *mut Ui = ui as *mut Ui;
 
     let side = match is_left {
         true => "left",
@@ -39,6 +36,8 @@ fn render_window_impl(
         true => imgui.focused_window_left,
         false => !imgui.focused_window_left,
     };
+
+    let mut path_to_open_option: Option<PathBuf> = None;
 
     ui.child_window(window_name)
         .size([width, height])
@@ -70,7 +69,7 @@ fn render_window_impl(
                 }
             }
 
-            let clicked;
+            let render_table_result;
             let current_item = match is_left {
                 true => &mut imgui.left_item_selected_idx,
                 false => &mut imgui.right_item_selected_idx,
@@ -79,12 +78,19 @@ fn render_window_impl(
             ui.text(format!("Path: {path}"));
 
             unsafe {
-                clicked = render_table(ui_ptr, files, current_item);
+                render_table_result = render_table(ui_ptr, files, current_item);
             }
 
-            if clicked {
+            if render_table_result.table_clicked {
                 log::debug!("{side} table clicked");
                 imgui.focused_window_left = is_left
+            }
+
+            if let Some(idx) = render_table_result.to_open_idx {
+                let element_to_open = &files[idx];
+                let path_to_open: PathBuf = [path, element_to_open].iter().collect();
+
+                path_to_open_option = Some(path_to_open);
             }
         });
 
@@ -92,17 +98,22 @@ fn render_window_impl(
         log::debug!("{side} window clicked");
         imgui.focused_window_left = is_left;
     }
+
+    path_to_open_option
 }
 
-/// Renders table and some debug info about it. Returns true if table was clicked.
-unsafe fn render_table(ui: *mut Ui, files: &Vec<String>, current_item: &mut i32) -> bool {
+/// Renders table and some debug info about it.
+unsafe fn render_table(
+    ui_ptr: *mut Ui,
+    files: &Vec<String>,
+    current_item: &mut i32,
+) -> RenderTableResult {
+    let ui: &mut Ui;
+
     unsafe {
-        let ui = ui.as_mut().unwrap();
-        return render_table_impl(ui, files, current_item);
+        ui = ui_ptr.as_mut().unwrap();
     }
-}
 
-fn render_table_impl(ui: &mut Ui, files: &Vec<String>, current_item: &mut i32) -> bool {
     let table_token = ui
         .begin_table_with_flags(
             "table",
@@ -111,6 +122,7 @@ fn render_table_impl(ui: &mut Ui, files: &Vec<String>, current_item: &mut i32) -
         )
         .unwrap();
 
+    let mut double_clicked_idx: Option<usize> = None;
     let mut any_row_clicked = false;
     for (idx, file) in files.iter().enumerate() {
         ui.table_next_row();
@@ -118,10 +130,15 @@ fn render_table_impl(ui: &mut Ui, files: &Vec<String>, current_item: &mut i32) -
         let clicked = ui
             .selectable_config(format!("{idx}"))
             .selected(idx == (*current_item) as usize)
-            .flags(SelectableFlags::SPAN_ALL_COLUMNS)
+            .flags(SelectableFlags::SPAN_ALL_COLUMNS | SelectableFlags::ALLOW_DOUBLE_CLICK)
             .build();
 
         if clicked {
+            log::info!("clicked idx: {idx}");
+            if ui.is_mouse_double_clicked(MouseButton::Left) {
+                double_clicked_idx = Some(idx);
+            }
+
             *current_item = idx as i32;
             any_row_clicked = true;
         }
@@ -134,5 +151,8 @@ fn render_table_impl(ui: &mut Ui, files: &Vec<String>, current_item: &mut i32) -
 
     ui.text(format!("current_item: {current_item}"));
 
-    any_row_clicked
+    RenderTableResult {
+        table_clicked: any_row_clicked,
+        to_open_idx: double_clicked_idx,
+    }
 }

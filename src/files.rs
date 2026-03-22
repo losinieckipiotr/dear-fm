@@ -1,31 +1,51 @@
-use std::{fs, io};
+use std::{fs, path::PathBuf};
 
-pub fn read_directory(path: &str) -> io::Result<Vec<String>> {
-    let entries = fs::read_dir(path)?;
+pub fn read_directory(path: &str) -> Vec<String> {
+    let entries = fs::read_dir(path);
 
-    let files: Vec<String> = entries
-        .filter_map(|e| match e {
-            Ok(entry) => {
-                let file_name = String::from(entry.file_name().into_string().unwrap());
+    match entries {
+        Err(error) => {
+            log::error!("error during directory: '{}' read: {:#?}", path, error);
 
-                if file_name.starts_with(".") {
-                    None
-                } else {
-                    Some(file_name)
-                }
-            }
-            Err(error) => {
-                log::error!("{:#?}", error);
-                None
-            }
-        })
-        .collect();
+            Vec::new()
+        }
+        Ok(entries) => {
+            let files: Vec<String> = entries
+                .filter_map(|e| match e {
+                    Ok(entry) => {
+                        let file_name = String::from(entry.file_name().into_string().unwrap());
 
-    Ok(files)
+                        if file_name.starts_with(".") {
+                            None
+                        } else {
+                            Some(file_name)
+                        }
+                    }
+                    Err(error) => {
+                        log::error!("{:#?}", error);
+                        None
+                    }
+                })
+                .collect();
 
-    // files.iter().for_each(|file| {
-    //     log::info!("file: {file}");
-    // });
+            files
+        }
+    }
+}
 
-    // Ok(())
+pub fn is_dir(path: &PathBuf) -> bool {
+    let result = fs::metadata(path);
+
+    match result {
+        Ok(metadata) => metadata.is_dir(),
+        Err(error) => {
+            log::error!(
+                "is_dir error - path: '{}', error: {:#?}",
+                path.display(),
+                error
+            );
+
+            false
+        }
+    }
 }

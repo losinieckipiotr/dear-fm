@@ -3,12 +3,13 @@ use imgui_wgpu::{Renderer, RendererConfig};
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
 use pollster::block_on;
 use std::{
+    path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
 };
+use wgpu::Color;
 use winit::{
     application::ApplicationHandler,
-    dpi::LogicalSize,
     event::{Event, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     keyboard::{Key, KeyCode, NamedKey, PhysicalKey},
@@ -18,8 +19,17 @@ use winit::{
 
 use env_logger::Env;
 
+use crate::files::read_directory;
+
 mod files;
 mod render;
+
+struct AppFiles {
+    left_path: String,
+    right_path: String,
+    left_files: Vec<String>,
+    right_files: Vec<String>,
+}
 
 pub struct ImguiState {
     context: imgui::Context,
@@ -33,9 +43,11 @@ pub struct ImguiState {
     last_frame_measure_time: Instant,
     last_measure_frame_count: i32,
     frame_rate: i32,
+    // TODO: make selected idexes optional
     left_item_selected_idx: i32,
     right_item_selected_idx: i32,
     focused_window_left: bool,
+    app_files: AppFiles,
 }
 
 struct AppWindow {
@@ -49,34 +61,28 @@ struct AppWindow {
 }
 
 struct App {
-    window: Option<AppWindow>,
-    left_files: Vec<String>,
-    right_files: Vec<String>,
+    app_window: Option<AppWindow>,
 }
 
 impl App {
     fn new() -> Self {
         Self {
-            window: Option::None,
-            left_files: Vec::new(),
-            right_files: Vec::new(),
+            app_window: Option::None,
         }
     }
 
     fn reset_state(&mut self) {
         let new_state = App::new();
 
-        self.window = new_state.window;
+        self.app_window = new_state.app_window;
     }
 }
-
-const LEFT_PATH: &str = "/";
-const RIGHT_PATH: &str = "/Users/piotrlosiniecki";
-// crashes with bigger value?
 
 fn main() {
     // env_logger::init();
     env_logger::init_from_env(Env::new().default_filter_or(log::Level::Info.as_str()));
+
+    // TODO: event_loop proxy for dispatching actions
 
     let event_loop = EventLoop::new().unwrap();
     event_loop.set_control_flow(ControlFlow::Wait);
@@ -118,14 +124,14 @@ impl AppWindow {
             ..Default::default()
         });
 
-        let monitor = event_loop.primary_monitor().unwrap();
-        let size = monitor.size();
+        // let monitor = event_loop.primary_monitor().unwrap();
+        // let size = monitor.size();
 
         let window = {
             let version = env!("CARGO_PKG_VERSION");
 
             let attributes = Window::default_attributes()
-                .with_inner_size(LogicalSize::new(size.width, size.height))
+                // .with_inner_size(LogicalSize::new(size.width, size.height))
                 .with_title(format!("Dear File Manager {version}"));
             Arc::new(event_loop.create_window(attributes).unwrap())
         };
@@ -212,21 +218,20 @@ impl AppWindow {
         };
 
         let renderer = Renderer::new(&mut context, &self.device, &self.queue, renderer_config);
-
         let last_frame = Instant::now();
 
         self.imgui = Some(ImguiState {
             context,
             platform,
             renderer,
-            clear_color: wgpu::Color {
+            clear_color: Color {
                 r: 0.1,
                 g: 0.2,
                 b: 0.3,
                 a: 1.0,
             },
             demo_open: false,
-            limit_fps: false,
+            limit_fps: true,
             last_frame,
             last_cursor: None,
             last_frame_measure_time: last_frame,
@@ -235,6 +240,12 @@ impl AppWindow {
             left_item_selected_idx: 0,
             right_item_selected_idx: 0,
             focused_window_left: true,
+            app_files: AppFiles {
+                left_path: String::from("/Users/piotrlosiniecki"),
+                right_path: String::from("/Users/piotrlosiniecki/Projects"),
+                left_files: Vec::new(),
+                right_files: Vec::new(),
+            },
         })
     }
 }
@@ -246,23 +257,15 @@ impl ApplicationHandler for App {
         self.reset_state();
 
         let app_window = AppWindow::new(event_loop);
-        self.window = Some(app_window);
+        self.app_window = Some(app_window);
 
-        match files::read_directory(LEFT_PATH) {
-            Ok(files) => self.left_files = files,
-            Err(error) => {
-                log::error!("error during left directory read: {:#?}", error);
-                self.left_files = vec![];
-            }
-        }
+        // TODO: move reading file system to another thread
 
-        match files::read_directory(RIGHT_PATH) {
-            Ok(files) => self.right_files = files,
-            Err(error) => {
-                log::error!("error during right directory read: {:#?}", error);
-                self.right_files = vec![];
-            }
-        }
+        let window = self.app_window.as_mut().unwrap();
+        let imgui = window.imgui.as_mut().unwrap();
+
+        imgui.app_files.left_files = read_directory(&imgui.app_files.left_path);
+        imgui.app_files.right_files = read_directory(&imgui.app_files.right_path);
     }
 
     fn window_event(
@@ -277,7 +280,18 @@ impl ApplicationHandler for App {
             WindowEvent::Resized(size) => {
                 log::debug!("WindowEvent::Resized size: {:#?}", size);
 
-                self.on_window_resized();
+                let app_window = self.app_window.as_mut().unwrap();
+                let size = app_window.window.inner_size();
+
+                log::debug!("size.width: {}, size.height: {}", size.width, size.height);
+
+                app_window.surface_desc = AppWindow::get_surface_desc(&app_window.window);
+
+                app_window
+                    .surface
+                    .configure(&app_window.device, &app_window.surface_desc);
+
+                app_window.window.request_redraw();
             }
             WindowEvent::RedrawRequested => {
                 log::debug!("WindowEvent::RedrawRequested");
@@ -287,16 +301,16 @@ impl ApplicationHandler for App {
             WindowEvent::KeyboardInput { event, .. } => {
                 log::debug!("WindowEvent::KeyboardInput");
 
+                let app_window = self.app_window.as_mut().unwrap();
+
                 match event.physical_key {
                     PhysicalKey::Code(KeyCode::KeyF) => {
-                        let window = self.window.as_mut().unwrap();
-
                         if event.state.is_pressed() && !event.repeat {
                             log::debug!("Toggling fullscreen");
 
-                            window
+                            app_window
                                 .window
-                                .set_simple_fullscreen(!window.window.simple_fullscreen());
+                                .set_simple_fullscreen(!app_window.window.simple_fullscreen());
                         }
                     }
                     _ => {}
@@ -306,18 +320,53 @@ impl ApplicationHandler for App {
                         event_loop.exit();
                     }
                 }
-            }
-            // WindowEvent::MouseWheel {
-            //     device_id: _,
-            //     delta,
-            //     phase,
-            // } => {
-            //     // log::info!("delta: {:#?}", delta);
-            //     // log::info!("phase: {:#?}", phase);
 
-            //     // TODO: scroll is too fast i probably need to throttle
-            //     // based on refresh rate?
-            // }
+                let has_focus = app_window.window.has_focus();
+
+                if has_focus {
+                    app_window.window.request_redraw();
+                }
+            }
+            WindowEvent::CursorMoved {
+                device_id,
+                position,
+            } => {
+                log::debug!(
+                    "WindowEvent::CursorMoved, device_id: {:#?}, position: {:#?}",
+                    device_id,
+                    position
+                );
+
+                let app_window = self.app_window.as_ref().unwrap();
+                let has_focus = app_window.window.has_focus();
+
+                log::debug!("WindowEvent::CursorMoved - has_focus: {has_focus}");
+
+                if has_focus {
+                    app_window.window.request_redraw();
+                }
+            }
+            WindowEvent::MouseWheel {
+                device_id: _,
+                delta,
+                phase,
+            } => {
+                log::debug!(
+                    "WindowEvent::MouseWheel, delta: {:#?}, phase: {:#?}",
+                    delta,
+                    phase
+                );
+
+                // TODO: scroll is too fast i probably need to throttle
+                // based on refresh rate?
+
+                let app_window = self.app_window.as_ref().unwrap();
+                let has_focus = app_window.window.has_focus();
+
+                if has_focus {
+                    app_window.window.request_redraw();
+                }
+            }
             WindowEvent::CloseRequested => {
                 log::debug!("WindowEvent::CloseRequested");
 
@@ -326,12 +375,12 @@ impl ApplicationHandler for App {
             _ => (),
         }
 
-        let window = self.window.as_mut().unwrap();
-        let imgui = window.imgui.as_mut().unwrap();
+        let app_window = self.app_window.as_mut().unwrap();
+        let imgui = app_window.imgui.as_mut().unwrap();
 
         imgui.platform.handle_event::<()>(
             imgui.context.io_mut(),
-            &window.window,
+            &app_window.window,
             &Event::WindowEvent { window_id, event },
         );
     }
@@ -339,8 +388,8 @@ impl ApplicationHandler for App {
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         log::debug!("about_to_wait");
 
-        let window = self.window.as_mut().unwrap();
-        let imgui = window.imgui.as_mut().unwrap();
+        let app_window = self.app_window.as_mut().unwrap();
+        let imgui = app_window.imgui.as_mut().unwrap();
 
         let limit_fps = imgui.limit_fps;
 
@@ -349,7 +398,7 @@ impl ApplicationHandler for App {
             let now = Instant::now();
             let last_frame = imgui.last_frame;
             let delta_time = now - last_frame;
-            let target_fps = 60.0;
+            let target_fps = 30.0;
             let target_fps_s = 1.0 / target_fps;
             let fps_100_duration = Duration::from_secs_f64(target_fps_s);
 
@@ -357,7 +406,7 @@ impl ApplicationHandler for App {
 
             if delta_time > fps_100_duration {
                 log::debug!("request_redraw");
-                window.window.request_redraw();
+                app_window.window.request_redraw();
             } else {
                 let wait_for = fps_100_duration - delta_time;
                 // TODO: do not wait if wait_for is small
@@ -367,47 +416,30 @@ impl ApplicationHandler for App {
         } else {
             log::debug!("request_redraw");
             event_loop.set_control_flow(ControlFlow::Poll);
-            window.window.request_redraw();
+            app_window.window.request_redraw();
         }
 
         imgui.platform.handle_event::<()>(
             imgui.context.io_mut(),
-            &window.window,
+            &app_window.window,
             &Event::AboutToWait,
         );
     }
 }
 
 impl App {
-    fn on_window_resized(&mut self) {
-        log::debug!("on_window_resized");
-
-        let window = self.window.as_mut().unwrap();
-        let size = window.window.inner_size();
-
-        log::debug!("size.width: {}, size.height: {}", size.width, size.height);
-
-        window.surface_desc = AppWindow::get_surface_desc(&window.window);
-
-        window
-            .surface
-            .configure(&window.device, &window.surface_desc);
-    }
-
     fn on_redraw_requested(&mut self, _event_loop: &ActiveEventLoop) {
-        log::debug!("on_redraw_requested");
-
         let now = Instant::now();
 
-        let window = self.window.as_mut().unwrap();
-        let imgui = window.imgui.as_mut().unwrap();
+        let app_window = self.app_window.as_mut().unwrap();
+        let imgui = app_window.imgui.as_mut().unwrap();
         let imgui_ptr = imgui as *mut ImguiState;
 
         let delta_time = now - imgui.last_frame;
         imgui.context.io_mut().update_delta_time(delta_time);
         imgui.last_frame = now;
 
-        let frame = match window.surface.get_current_texture() {
+        let frame = match app_window.surface.get_current_texture() {
             Ok(frame) => frame,
             Err(e) => {
                 log::warn!("dropped frame: {e:?}");
@@ -418,14 +450,14 @@ impl App {
 
         imgui
             .platform
-            .prepare_frame(imgui.context.io_mut(), &window.window)
+            .prepare_frame(imgui.context.io_mut(), &app_window.window)
             .expect("Failed to prepare frame");
         let ui = imgui.context.frame();
         let ui_ptr = ui as *mut Ui;
 
-        let app_window = &window.window;
-        let inner_size = app_window.inner_size();
-        let scale = app_window.scale_factor();
+        let window = &app_window.window;
+        let inner_size = window.inner_size();
+        let scale = window.scale_factor();
         let width = ((inner_size.width as f64) / scale) as f32;
         let height = (inner_size.height as f64 / scale) as f32;
 
@@ -446,7 +478,7 @@ impl App {
         if imgui.demo_open {
             ui.show_demo_window(&mut imgui.demo_open);
         } else {
-            ui.window("Main window")
+            ui.window("main_window")
                 .size([width, height], Condition::Always)
                 .always_auto_resize(true)
                 .position([0.0, 0.0], Condition::Appearing)
@@ -468,41 +500,71 @@ impl App {
                     ui.text(format!("Frame rate: {frame_rate} FPS"));
                     ui.text(format!("Frame count: {frame_count}"));
 
+                    let mut path_to_open_option: Option<PathBuf>;
+
                     unsafe {
-                        render::render_files_window(
+                        path_to_open_option = render::render_files_window(
                             ui_ptr,
                             imgui_ptr,
                             half_screen,
                             main_window_h,
                             true,
-                            LEFT_PATH,
-                            &self.left_files,
+                            &imgui.app_files.left_path,
+                            &imgui.app_files.left_files,
                         );
+                    }
+
+                    if let Some(path_to_open) = path_to_open_option {
+                        log::info!("left window path_to_open: {}", path_to_open.display());
+
+                        if files::is_dir(&path_to_open) {
+                            let path_str = path_to_open.as_path().to_str().unwrap();
+                            let files = files::read_directory(path_str);
+
+                            imgui.app_files.left_path = path_str.to_string();
+                            imgui.app_files.left_files = files;
+
+                            app_window.window.request_redraw();
+                        }
                     }
 
                     ui.same_line();
 
                     unsafe {
-                        render::render_files_window(
+                        path_to_open_option = render::render_files_window(
                             ui_ptr,
                             imgui_ptr,
                             0.0,
                             main_window_h,
                             false,
-                            RIGHT_PATH,
-                            &self.right_files,
+                            &imgui.app_files.right_path,
+                            &imgui.app_files.right_files,
                         );
+                    }
+
+                    if let Some(path_to_open) = path_to_open_option {
+                        log::info!("right window path_to_open: {}", path_to_open.display());
+
+                        if files::is_dir(&path_to_open) {
+                            let path_str = path_to_open.as_path().to_str().unwrap();
+                            let files = files::read_directory(path_str);
+
+                            imgui.app_files.right_path = path_str.to_string();
+                            imgui.app_files.right_files = files;
+
+                            app_window.window.request_redraw();
+                        }
                     }
                 });
         }
 
-        let mut encoder: wgpu::CommandEncoder = window
+        let mut encoder: wgpu::CommandEncoder = app_window
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
 
         if imgui.last_cursor != ui.mouse_cursor() {
             imgui.last_cursor = ui.mouse_cursor();
-            imgui.platform.prepare_render(&ui, &window.window);
+            imgui.platform.prepare_render(&ui, &app_window.window);
         }
 
         let view = frame
@@ -529,15 +591,15 @@ impl App {
             .renderer
             .render(
                 imgui.context.render(),
-                &window.queue,
-                &window.device,
+                &app_window.queue,
+                &app_window.device,
                 &mut rpass,
             )
             .expect("Rendering failed");
 
         drop(rpass);
 
-        window.queue.submit(Some(encoder.finish()));
+        app_window.queue.submit(Some(encoder.finish()));
 
         frame.present();
     }
