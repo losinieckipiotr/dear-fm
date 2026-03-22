@@ -512,16 +512,16 @@ impl App {
                 .scrollable(false)
                 .scroll_bar(false)
                 .build(|| {
-                    let content_region_avail = ui.content_region_avail();
-                    let half_screen = content_region_avail[0] / 2.0;
-                    let main_window_h = content_region_avail[1];
-
                     if ui.is_key_pressed(imgui::Key::Tab) {
                         imgui.focused_window_left = !imgui.focused_window_left;
                     }
 
                     ui.text(format!("Frame rate: {frame_rate} FPS"));
                     ui.text(format!("Frame count: {frame_count}"));
+
+                    let content_region_avail = ui.content_region_avail();
+                    let half_screen = content_region_avail[0] / 2.0;
+                    let main_window_h = content_region_avail[1];
 
                     let mut path_to_open_option: Option<PathBuf>;
 
