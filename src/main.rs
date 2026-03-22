@@ -80,7 +80,9 @@ impl App {
 
 fn main() {
     // env_logger::init();
-    env_logger::init_from_env(Env::new().default_filter_or(log::Level::Info.as_str()));
+    env_logger::init_from_env(
+        Env::new().default_filter_or(log::Level::Info.as_str()),
+    );
 
     // TODO: event_loop proxy for dispatching actions
 
@@ -139,15 +141,18 @@ impl AppWindow {
         let hidpi_factor = window.scale_factor();
         let surface = instance.create_surface(window.clone()).unwrap();
 
-        let adapter = block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::HighPerformance,
-            compatible_surface: Some(&surface),
-            force_fallback_adapter: false,
-        }))
-        .unwrap();
+        let adapter =
+            block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+                power_preference: wgpu::PowerPreference::HighPerformance,
+                compatible_surface: Some(&surface),
+                force_fallback_adapter: false,
+            }))
+            .unwrap();
 
-        let (device, queue) =
-            block_on(adapter.request_device(&wgpu::DeviceDescriptor::default())).unwrap();
+        let (device, queue) = block_on(
+            adapter.request_device(&wgpu::DeviceDescriptor::default()),
+        )
+        .unwrap();
 
         let surface_desc = Self::get_surface_desc(&window);
         surface.configure(&device, &surface_desc);
@@ -168,7 +173,11 @@ impl AppWindow {
         let mut context = imgui::Context::create();
         let mut platform = WinitPlatform::new(&mut context);
 
-        platform.attach_window(context.io_mut(), &self.window, HiDpiMode::Default);
+        platform.attach_window(
+            context.io_mut(),
+            &self.window,
+            HiDpiMode::Default,
+        );
         context.set_ini_filename(None);
 
         // may crash for too big font size and high oversampling, probably because of GPU memory limits?
@@ -217,7 +226,12 @@ impl AppWindow {
             ..Default::default()
         };
 
-        let renderer = Renderer::new(&mut context, &self.device, &self.queue, renderer_config);
+        let renderer = Renderer::new(
+            &mut context,
+            &self.device,
+            &self.queue,
+            renderer_config,
+        );
         let last_frame = Instant::now();
 
         self.imgui = Some(ImguiState {
@@ -263,9 +277,10 @@ impl ApplicationHandler for App {
 
         let window = self.app_window.as_mut().unwrap();
         let imgui = window.imgui.as_mut().unwrap();
+        let app_files = &mut imgui.app_files;
 
-        imgui.app_files.left_files = read_directory(&imgui.app_files.left_path);
-        imgui.app_files.right_files = read_directory(&imgui.app_files.right_path);
+        app_files.left_files = read_directory(&app_files.left_path);
+        app_files.right_files = read_directory(&app_files.right_path);
     }
 
     fn window_event(
@@ -283,9 +298,14 @@ impl ApplicationHandler for App {
                 let app_window = self.app_window.as_mut().unwrap();
                 let size = app_window.window.inner_size();
 
-                log::debug!("size.width: {}, size.height: {}", size.width, size.height);
+                log::debug!(
+                    "size.width: {}, size.height: {}",
+                    size.width,
+                    size.height
+                );
 
-                app_window.surface_desc = AppWindow::get_surface_desc(&app_window.window);
+                app_window.surface_desc =
+                    AppWindow::get_surface_desc(&app_window.window);
 
                 app_window
                     .surface
@@ -308,9 +328,9 @@ impl ApplicationHandler for App {
                         if event.state.is_pressed() && !event.repeat {
                             log::debug!("Toggling fullscreen");
 
-                            app_window
-                                .window
-                                .set_simple_fullscreen(!app_window.window.simple_fullscreen());
+                            app_window.window.set_simple_fullscreen(
+                                !app_window.window.simple_fullscreen(),
+                            );
                         }
                     }
                     _ => {}
@@ -340,7 +360,9 @@ impl ApplicationHandler for App {
                 let app_window = self.app_window.as_ref().unwrap();
                 let has_focus = app_window.window.has_focus();
 
-                log::debug!("WindowEvent::CursorMoved - has_focus: {has_focus}");
+                log::debug!(
+                    "WindowEvent::CursorMoved - has_focus: {has_focus}"
+                );
 
                 if has_focus {
                     app_window.window.request_redraw();
@@ -411,7 +433,8 @@ impl ApplicationHandler for App {
                 let wait_for = fps_100_duration - delta_time;
                 // TODO: do not wait if wait_for is small
                 log::debug!("wait_for: {} mikro s", wait_for.as_micros());
-                event_loop.set_control_flow(ControlFlow::WaitUntil(now + wait_for));
+                event_loop
+                    .set_control_flow(ControlFlow::WaitUntil(now + wait_for));
             }
         } else {
             log::debug!("request_redraw");
@@ -515,10 +538,14 @@ impl App {
                     }
 
                     if let Some(path_to_open) = path_to_open_option {
-                        log::info!("left window path_to_open: {}", path_to_open.display());
+                        log::info!(
+                            "left window path_to_open: {}",
+                            path_to_open.display()
+                        );
 
                         if files::is_dir(&path_to_open) {
-                            let path_str = path_to_open.as_path().to_str().unwrap();
+                            let path_str =
+                                path_to_open.as_path().to_str().unwrap();
                             let files = files::read_directory(path_str);
 
                             imgui.app_files.left_path = path_str.to_string();
@@ -543,10 +570,14 @@ impl App {
                     }
 
                     if let Some(path_to_open) = path_to_open_option {
-                        log::info!("right window path_to_open: {}", path_to_open.display());
+                        log::info!(
+                            "right window path_to_open: {}",
+                            path_to_open.display()
+                        );
 
                         if files::is_dir(&path_to_open) {
-                            let path_str = path_to_open.as_path().to_str().unwrap();
+                            let path_str =
+                                path_to_open.as_path().to_str().unwrap();
                             let files = files::read_directory(path_str);
 
                             imgui.app_files.right_path = path_str.to_string();
@@ -558,9 +589,10 @@ impl App {
                 });
         }
 
-        let mut encoder: wgpu::CommandEncoder = app_window
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+        let mut encoder: wgpu::CommandEncoder =
+            app_window.device.create_command_encoder(
+                &wgpu::CommandEncoderDescriptor { label: None },
+            );
 
         if imgui.last_cursor != ui.mouse_cursor() {
             imgui.last_cursor = ui.mouse_cursor();
@@ -570,22 +602,23 @@ impl App {
         let view = frame
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
-        let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: None,
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(imgui.clear_color),
-                    store: wgpu::StoreOp::Store,
-                },
-                depth_slice: None,
-            })],
-            depth_stencil_attachment: None,
-            timestamp_writes: None,
-            occlusion_query_set: None,
-            multiview_mask: None,
-        });
+        let mut rpass =
+            encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(imgui.clear_color),
+                        store: wgpu::StoreOp::Store,
+                    },
+                    depth_slice: None,
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
 
         imgui
             .renderer

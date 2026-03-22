@@ -44,8 +44,9 @@ pub unsafe fn render_files_window(
         .border(true)
         .focused(focused)
         .build(|| {
-            let has_focus =
-                ui.is_window_focused_with_flags(imgui::WindowFocusedFlags::CHILD_WINDOWS);
+            let has_focus = ui.is_window_focused_with_flags(
+                imgui::WindowFocusedFlags::CHILD_WINDOWS,
+            );
 
             ui.text(format!("Has focus: {has_focus}"));
 
@@ -88,7 +89,8 @@ pub unsafe fn render_files_window(
 
             if let Some(idx) = render_table_result.to_open_idx {
                 let element_to_open = &files[idx];
-                let path_to_open: PathBuf = [path, element_to_open].iter().collect();
+                let path_to_open: PathBuf =
+                    [path, element_to_open].iter().collect();
 
                 path_to_open_option = Some(path_to_open);
             }
@@ -127,10 +129,14 @@ unsafe fn render_table(
     for (idx, file) in files.iter().enumerate() {
         ui.table_next_row();
         ui.table_next_column();
+
         let clicked = ui
             .selectable_config(format!("{idx}"))
             .selected(idx == (*current_item) as usize)
-            .flags(SelectableFlags::SPAN_ALL_COLUMNS | SelectableFlags::ALLOW_DOUBLE_CLICK)
+            .flags(
+                SelectableFlags::SPAN_ALL_COLUMNS
+                    | SelectableFlags::ALLOW_DOUBLE_CLICK,
+            )
             .build();
 
         if clicked {

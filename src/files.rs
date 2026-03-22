@@ -5,7 +5,11 @@ pub fn read_directory(path: &str) -> Vec<String> {
 
     match entries {
         Err(error) => {
-            log::error!("error during directory: '{}' read: {:#?}", path, error);
+            log::error!(
+                "error during directory: '{}' read: {:#?}",
+                path,
+                error
+            );
 
             Vec::new()
         }
@@ -13,7 +17,9 @@ pub fn read_directory(path: &str) -> Vec<String> {
             let files: Vec<String> = entries
                 .filter_map(|e| match e {
                     Ok(entry) => {
-                        let file_name = String::from(entry.file_name().into_string().unwrap());
+                        let file_name = String::from(
+                            entry.file_name().into_string().unwrap(),
+                        );
 
                         if file_name.starts_with(".") {
                             None
