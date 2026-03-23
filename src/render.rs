@@ -1,135 +1,90 @@
 use std::{cell::RefCell, path::PathBuf, rc::Rc};
 
-use crate::TestState;
+use crate::{AppState, Side};
 
 use imgui::*;
 
 struct RenderTableResult {
     table_clicked: bool,
     to_open_idx: Option<usize>,
-    current_item: i32,
-}
-
-enum Side {
-    Left,
-    Right,
-}
-
-impl Side {
-    fn as_str(&self) -> &'static str {
-        match self {
-            Self::Left => "left",
-            Self::Right => "right",
-        }
-    }
-
-    fn from_bool(is_left: bool) -> Side {
-        match is_left {
-            true => Self::Left,
-            false => Self::Right,
-        }
-    }
 }
 
 /// Renders files window (left or right).
 pub fn render_files_window(
     ui: &Ui,
-    test_state: Rc<RefCell<TestState>>,
+    state: Rc<RefCell<AppState>>,
     width: f32,
     height: f32,
-    is_left: bool,
-    // path: &str,
-    // files: &Vec<String>,
+    side: Side,
 ) -> Option<PathBuf> {
-    let side = Side::from_bool(is_left);
     let window_name: String = format!("{} window", side.as_str());
-    let focused: bool;
-    let path: String;
-    let files: Vec<String>;
-    // TODO: optimize
-    {
-        let state = test_state.borrow();
-
-        (focused, path, files) = match side {
-            Side::Left => (
-                state.focused_window_left,
-                state.app_files.left_path.clone(),
-                state.app_files.left_files.clone(),
-            ),
-            Side::Right => (
-                !state.focused_window_left,
-                state.app_files.right_path.clone(),
-                state.app_files.right_files.clone(),
-            ),
-        };
-    }
+    let is_window_focused = state.borrow().is_window_focused(side);
 
     let mut path_to_open_option: Option<PathBuf> = None;
 
     ui.child_window(window_name)
         .size([width, height])
         .border(true)
-        .focused(focused)
+        .focused(is_window_focused)
         .build(|| {
-            let render_table_result: RenderTableResult;
-            let current_item: i32;
-            // TODO: move keyboard handling also to rendering table?
             {
-                let mut state = test_state.borrow_mut();
+                let mut state = state.borrow_mut();
+                let files_len = state.get_window_files(side).len();
 
-                let has_focus = ui.is_window_focused_with_flags(
+                let has_window_focus = ui.is_window_focused_with_flags(
                     imgui::WindowFocusedFlags::CHILD_WINDOWS,
                 );
 
-                ui.text(format!("Has focus: {has_focus}"));
+                ui.text(format!("Has focus: {has_window_focus}"));
 
-                let selected_item_ref = match is_left {
-                    true => &mut state.left_item_selected_idx,
-                    false => &mut state.right_item_selected_idx,
-                };
+                let current_item = state.get_selected_idx(side);
 
-                if has_focus {
+                if has_window_focus {
                     if ui.is_key_pressed(imgui::Key::DownArrow) {
-                        let next_item = *selected_item_ref + 1;
-                        if next_item < files.len() as i32 {
-                            *selected_item_ref = next_item
+                        let next_item = current_item + 1;
+                        if next_item < files_len as i32 {
+                            state.set_selected_idx(side, next_item);
                         }
-                    }
-                    if ui.is_key_pressed(imgui::Key::UpArrow) {
-                        let prev_item = *selected_item_ref - 1;
+                    } else if ui.is_key_pressed(imgui::Key::UpArrow) {
+                        let prev_item = current_item - 1;
                         if prev_item >= 0 {
-                            *selected_item_ref = prev_item
+                            state.set_selected_idx(side, prev_item);
                         }
+                    } else if ui.is_key_pressed(imgui::Key::Enter) {
+                        // TODO: refactor, with below code when tab element is clicked
+                        log::info!("{} table enter pressed", side.as_str());
+
+                        let files = state.get_window_files(side);
+                        let path = state.get_path(side);
+                        let element_to_open = &files[current_item as usize];
+                        let path_to_open: PathBuf =
+                            [path, element_to_open].iter().collect();
+
+                        path_to_open_option = Some(path_to_open);
+                        // TODO: should i return early?
                     }
                 }
 
-                current_item = *selected_item_ref;
+                let path = state.get_path(side);
+                ui.text(format!("Path: {path}"));
             }
 
-            ui.text(format!("Path: {path}"));
-
-            render_table_result =
-                render_table(ui, test_state.clone(), &files, current_item);
+            let render_table_result = render_table(ui, state.clone(), side);
 
             {
-                let mut state = test_state.borrow_mut();
-
-                let selected_item_ref = match is_left {
-                    true => &mut state.left_item_selected_idx,
-                    false => &mut state.right_item_selected_idx,
-                };
-
-                *selected_item_ref = render_table_result.current_item;
+                let mut state = state.borrow_mut();
 
                 if render_table_result.table_clicked {
                     log::debug!("{} table clicked", side.as_str());
-                    state.focused_window_left = is_left
+                    state.focused_window_left = side.is_left();
                 }
 
                 if let Some(idx) = render_table_result.to_open_idx {
+                    let files = state.get_window_files(side);
+                    let path = state.get_path(side);
                     let element_to_open = &files[idx];
                     let path_to_open: PathBuf =
-                        [&path, element_to_open].iter().collect();
+                        [path, element_to_open].iter().collect();
 
                     path_to_open_option = Some(path_to_open);
                 }
@@ -139,9 +94,8 @@ pub fn render_files_window(
     if ui.is_item_clicked() {
         log::debug!("{} window clicked", side.as_str());
 
-        let mut state = test_state.borrow_mut();
-
-        state.focused_window_left = is_left;
+        let mut state = state.borrow_mut();
+        state.focused_window_left = side.is_left();
     }
 
     path_to_open_option
@@ -150,12 +104,9 @@ pub fn render_files_window(
 /// Renders table and some debug info about it.
 fn render_table(
     ui: &Ui,
-    _test_state: Rc<RefCell<TestState>>,
-    files: &Vec<String>,
-    current_item: i32,
+    state: Rc<RefCell<AppState>>,
+    side: Side,
 ) -> RenderTableResult {
-    let mut current_item = current_item;
-
     let table_token = ui
         .begin_table_with_flags(
             "table",
@@ -164,8 +115,13 @@ fn render_table(
         )
         .unwrap();
 
+    let mut state = state.borrow_mut();
+    let files = state.get_window_files(side);
+    let mut current_item = state.get_selected_idx(side);
+
     let mut double_clicked_idx: Option<usize> = None;
     let mut any_row_clicked = false;
+
     for (idx, file) in files.iter().enumerate() {
         ui.table_next_row();
         ui.table_next_column();
@@ -195,18 +151,12 @@ fn render_table(
 
     table_token.end();
 
+    state.set_selected_idx(side, current_item);
+
     ui.text(format!("current_item: {current_item}"));
-
-    // let test_state = test_state.borrow();
-    // let value = test_state.demo_open;
-    // let flag = test_state.frame_rate;
-
-    // ui.text(format!("demo_open: {value}"));
-    // ui.text(format!("frame_rate: {flag}"));
 
     RenderTableResult {
         table_clicked: any_row_clicked,
         to_open_idx: double_clicked_idx,
-        current_item,
     }
 }
