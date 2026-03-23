@@ -32,6 +32,8 @@ pub struct AppFiles {
     pub right_files: Vec<String>,
 }
 
+// TODO: make constructor and private fields
+
 #[derive(Debug)]
 pub struct AppState {
     pub demo_open: bool,
@@ -46,6 +48,7 @@ pub struct AppState {
     pub right_item_selected_idx: i32,
     pub focused_window_left: bool,
     pub app_files: AppFiles,
+    pub frame_count: i32,
 }
 
 impl AppState {

@@ -20,11 +20,17 @@ pub fn render_frame(app_window: &mut AppWindow) {
     let imgui = app_window.imgui.as_mut().unwrap();
 
     {
-        let mut test_state = app_window.state.borrow_mut();
+        let mut state = app_window.state.borrow_mut();
 
-        let delta_time = now - test_state.last_frame;
-        imgui.context.io_mut().update_delta_time(delta_time);
-        test_state.last_frame = now;
+        let delta_time = now - state.last_frame;
+        let io = imgui.context.io_mut();
+        io.update_delta_time(delta_time);
+        state.last_frame = now;
+
+        io.config_flags = io.config_flags | ConfigFlags::DOCKING_ENABLE;
+        imgui
+            .context
+            .set_ini_filename(Some(PathBuf::from("./imgui.ini")));
     }
 
     let frame = match app_window.surface.get_current_texture() {
@@ -35,6 +41,10 @@ pub fn render_frame(app_window: &mut AppWindow) {
         }
     };
     let frame_count = imgui.context.frame_count();
+    {
+        let mut state = app_window.state.borrow_mut();
+        state.frame_count = frame_count;
+    }
 
     imgui
         .platform
@@ -44,26 +54,25 @@ pub fn render_frame(app_window: &mut AppWindow) {
     let ui = imgui.context.frame();
     let window = &app_window.window;
     let inner_size = window.inner_size();
-    let scale = window.scale_factor();
-    let width = ((inner_size.width as f64) / scale) as f32;
-    let height = (inner_size.height as f64 / scale) as f32;
+
+    ui.dockspace_over_main_viewport();
 
     let mut demo_open: bool;
     {
-        let mut test_state = app_window.state.borrow_mut();
-        let dt = now - test_state.last_frame_measure_time;
+        let mut state = app_window.state.borrow_mut();
+        let dt = now - state.last_frame_measure_time;
 
         if dt > Duration::from_secs(1) {
             // TODO: cleanup frame rate
             // let frame_rate2 = ui.io().framerate;
-            let frame_rate = frame_count - test_state.last_measure_frame_count;
+            let frame_rate = frame_count - state.last_measure_frame_count;
 
-            test_state.frame_rate = frame_rate;
-            test_state.last_frame_measure_time = now;
-            test_state.last_measure_frame_count = frame_count;
+            state.frame_rate = frame_rate;
+            state.last_frame_measure_time = now;
+            state.last_measure_frame_count = frame_count;
         }
 
-        demo_open = test_state.demo_open;
+        demo_open = state.demo_open;
     }
 
     // TODO: render two windows instead main and child windows
@@ -71,99 +80,67 @@ pub fn render_frame(app_window: &mut AppWindow) {
     if demo_open {
         ui.show_demo_window(&mut demo_open);
     } else {
-        ui.window("main_window")
-            .size([width, height], Condition::Always)
-            .always_auto_resize(true)
-            .position([0.0, 0.0], Condition::Appearing)
-            .collapsible(false)
-            .resizable(false)
-            .movable(false)
-            .title_bar(false)
-            .scrollable(false)
-            .scroll_bar(false)
-            .build(|| {
-                {
-                    let mut test_state = app_window.state.borrow_mut();
+        {
+            let mut state = app_window.state.borrow_mut();
 
-                    if ui.is_key_pressed(imgui::Key::Tab) {
-                        test_state.focused_window_left =
-                            !test_state.focused_window_left;
-                    }
-                }
-                {
-                    let test_state = app_window.state.borrow();
-                    let frame_rate = test_state.frame_rate;
+            if ui.is_key_pressed(imgui::Key::Tab) {
+                state.focused_window_left = !state.focused_window_left;
+            }
+        }
 
-                    ui.text(format!("Frame rate: {frame_rate} FPS",));
-                    ui.text(format!("Frame count: {frame_count}"));
-                }
+        let mut path_to_open_option: Option<PathBuf>;
 
-                let content_region_avail = ui.content_region_avail();
-                let half_screen = content_region_avail[0] / 2.0;
-                let main_window_h = content_region_avail[1];
+        path_to_open_option = render_files_window(
+            ui,
+            app_window.state.clone(),
+            inner_size.width as f32 / 2.0,
+            inner_size.height as f32,
+            Side::Left,
+        );
 
-                let mut path_to_open_option: Option<PathBuf>;
+        // TODO: refacotr left and right side
+        if let Some(path_to_open) = path_to_open_option {
+            log::info!("left window path_to_open: {}", path_to_open.display());
 
-                path_to_open_option = render_files_window(
-                    ui,
-                    app_window.state.clone(),
-                    half_screen,
-                    main_window_h,
-                    Side::Left,
-                );
+            if files::is_dir(&path_to_open) {
+                let mut state = app_window.state.borrow_mut();
 
-                // TODO: refacotr left and right side
-                if let Some(path_to_open) = path_to_open_option {
-                    log::info!(
-                        "left window path_to_open: {}",
-                        path_to_open.display()
-                    );
+                let path_str = path_to_open.as_path().to_str().unwrap();
+                let files = files::read_directory(path_str);
 
-                    if files::is_dir(&path_to_open) {
-                        let mut test_state = app_window.state.borrow_mut();
+                state.app_files.left_path = path_str.to_string();
+                state.app_files.left_files = files;
+                // TODO: handle case if directory is empty?
+                state.set_selected_idx(Side::Left, 0);
 
-                        let path_str = path_to_open.as_path().to_str().unwrap();
-                        let files = files::read_directory(path_str);
+                app_window.window.request_redraw();
+            }
+        }
 
-                        test_state.app_files.left_path = path_str.to_string();
-                        test_state.app_files.left_files = files;
-                        // TODO: handle case if directory is empty?
-                        test_state.set_selected_idx(Side::Left, 0);
+        path_to_open_option = render_files_window(
+            ui,
+            app_window.state.clone(),
+            inner_size.width as f32 / 2.0,
+            inner_size.height as f32,
+            Side::Right,
+        );
 
-                        app_window.window.request_redraw();
-                    }
-                }
+        if let Some(path_to_open) = path_to_open_option {
+            log::info!("right window path_to_open: {}", path_to_open.display());
 
-                ui.same_line();
+            if files::is_dir(&path_to_open) {
+                let mut state = app_window.state.borrow_mut();
 
-                path_to_open_option = render_files_window(
-                    ui,
-                    app_window.state.clone(),
-                    0.0,
-                    main_window_h,
-                    Side::Right,
-                );
+                let path_str = path_to_open.as_path().to_str().unwrap();
+                let files = files::read_directory(path_str);
 
-                if let Some(path_to_open) = path_to_open_option {
-                    log::info!(
-                        "right window path_to_open: {}",
-                        path_to_open.display()
-                    );
+                state.app_files.right_path = path_str.to_string();
+                state.app_files.right_files = files;
+                state.set_selected_idx(Side::Right, 0);
 
-                    if files::is_dir(&path_to_open) {
-                        let mut test_state = app_window.state.borrow_mut();
-
-                        let path_str = path_to_open.as_path().to_str().unwrap();
-                        let files = files::read_directory(path_str);
-
-                        test_state.app_files.right_path = path_str.to_string();
-                        test_state.app_files.right_files = files;
-                        test_state.set_selected_idx(Side::Right, 0);
-
-                        app_window.window.request_redraw();
-                    }
-                }
-            });
+                app_window.window.request_redraw();
+            }
+        }
     }
 
     let mut encoder: wgpu::CommandEncoder =
@@ -172,10 +149,10 @@ pub fn render_frame(app_window: &mut AppWindow) {
         );
 
     {
-        let mut test_state = app_window.state.borrow_mut();
+        let mut state = app_window.state.borrow_mut();
 
-        if test_state.last_cursor != ui.mouse_cursor() {
-            test_state.last_cursor = ui.mouse_cursor();
+        if state.last_cursor != ui.mouse_cursor() {
+            state.last_cursor = ui.mouse_cursor();
             imgui.platform.prepare_render(&ui, &app_window.window);
         }
     }
@@ -230,9 +207,10 @@ fn render_files_window(
 
     let mut path_to_open_option: Option<PathBuf> = None;
 
-    ui.child_window(window_name)
-        .size([width, height])
-        .border(true)
+    ui.window(window_name)
+        .position([0.0, 0.0], Condition::FirstUseEver)
+        .size([width, height], Condition::FirstUseEver)
+        .collapsible(false)
         .focused(is_window_focused)
         .build(|| {
             {
@@ -296,6 +274,15 @@ fn render_files_window(
 
                     path_to_open_option = Some(path_to_open);
                 }
+            }
+
+            {
+                let state = state.borrow();
+                let frame_rate = state.frame_rate;
+                let frame_count = state.frame_count;
+
+                ui.text(format!("Frame rate: {frame_rate} FPS",));
+                ui.text(format!("Frame count: {frame_count}"));
             }
         });
 

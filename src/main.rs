@@ -159,6 +159,7 @@ impl AppWindow {
                 left_item_selected_idx: 0,
                 right_item_selected_idx: 0,
                 focused_window_left: true,
+                frame_count: 0,
                 app_files: AppFiles {
                     left_path: String::from("/Users/piotrlosiniecki"),
                     right_path: String::from("/Users/piotrlosiniecki/Projects"),
@@ -289,12 +290,12 @@ impl ApplicationHandler for App {
                 log::debug!("WindowEvent::Resized size: {:#?}", size);
 
                 let app_window = self.app_window.as_mut().unwrap();
-                let size = app_window.window.inner_size();
+                let inner_size = app_window.window.inner_size();
 
                 log::debug!(
-                    "size.width: {}, size.height: {}",
-                    size.width,
-                    size.height
+                    "inner_size.width: {}, inner_size.height: {}",
+                    inner_size.width,
+                    inner_size.height
                 );
 
                 app_window.surface_desc =
