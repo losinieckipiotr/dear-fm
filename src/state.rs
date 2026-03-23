@@ -16,7 +16,7 @@ impl Side {
         }
     }
 
-    pub fn is_left(&self) -> bool {
+    fn is_left(&self) -> bool {
         match self {
             Self::Left => true,
             Self::Right => false,
@@ -86,5 +86,9 @@ impl AppState {
                 self.right_item_selected_idx = idx;
             }
         }
+    }
+
+    pub fn focus_window(&mut self, side: Side) {
+        self.focused_window_left = side.is_left();
     }
 }

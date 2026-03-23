@@ -284,7 +284,7 @@ fn render_files_window(
 
                 if render_table_result.table_clicked {
                     log::debug!("{} table clicked", side.as_str());
-                    state.focused_window_left = side.is_left();
+                    state.focus_window(side);
                 }
 
                 if let Some(idx) = render_table_result.to_open_idx {
@@ -303,7 +303,7 @@ fn render_files_window(
         log::debug!("{} window clicked", side.as_str());
 
         let mut state = state.borrow_mut();
-        state.focused_window_left = side.is_left();
+        state.focus_window(side);
     }
 
     path_to_open_option
