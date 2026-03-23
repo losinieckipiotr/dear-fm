@@ -3,8 +3,6 @@ use imgui_wgpu::{Renderer, RendererConfig};
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
 use pollster::block_on;
 use std::{
-    cell::RefCell,
-    rc::Rc,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -42,7 +40,7 @@ struct AppWindow {
     surface: wgpu::Surface<'static>,
     hidpi_factor: f64,
     imgui: Option<ImguiState>,
-    state: Rc<RefCell<AppState>>,
+    state: AppState,
 }
 
 struct App {
@@ -137,9 +135,8 @@ impl AppWindow {
         let surface_desc = Self::get_surface_desc(&window);
         surface.configure(&device, &surface_desc);
 
-        let last_frame = Instant::now();
+        let now = Instant::now();
 
-        let imgui = None;
         Self {
             device,
             queue,
@@ -147,13 +144,13 @@ impl AppWindow {
             surface_desc,
             surface,
             hidpi_factor,
-            imgui,
-            state: Rc::new(RefCell::new(AppState {
+            imgui: None,
+            state: AppState {
                 demo_open: false,
                 limit_fps: true,
-                last_frame,
+                last_frame: now,
                 last_cursor: None,
-                last_frame_measure_time: last_frame,
+                last_frame_measure_time: now,
                 last_measure_frame_count: 0,
                 frame_rate: 0,
                 left_item_selected_idx: 0,
@@ -166,7 +163,7 @@ impl AppWindow {
                     left_files: Vec::new(),
                     right_files: Vec::new(),
                 },
-            })),
+            },
         }
     }
 
@@ -253,19 +250,14 @@ impl ApplicationHandler for App {
         log::debug!("resumed");
 
         let mut app_window = AppWindow::new(event_loop);
+        let state = &mut app_window.state;
 
         // TODO: move reading file system to another thread
-        {
-            let mut state = app_window.state.borrow_mut();
-            let left_path = &state.app_files.left_path;
-            let right_path = &state.app_files.right_path;
+        let left_path = &state.app_files.left_path;
+        let right_path = &state.app_files.right_path;
 
-            let left_files = read_directory(left_path);
-            let righ_files = read_directory(right_path);
-
-            state.app_files.left_files = left_files;
-            state.app_files.right_files = righ_files;
-        }
+        state.app_files.left_files = read_directory(left_path);
+        state.app_files.right_files = read_directory(right_path);
 
         let imgui = app_window.imgui.as_mut().unwrap();
         imgui.platform.handle_event::<()>(
@@ -408,7 +400,7 @@ impl ApplicationHandler for App {
 
         let app_window = self.app_window.as_mut().unwrap();
         let imgui = app_window.imgui.as_mut().unwrap();
-        let state = app_window.state.borrow_mut();
+        let state = &app_window.state;
 
         // TODO: use this mechanism limit fps in idle application
         if state.limit_fps {

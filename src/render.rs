@@ -1,7 +1,5 @@
 use std::{
-    cell::RefCell,
     path::PathBuf,
-    rc::Rc,
     time::{Duration, Instant},
 };
 
@@ -18,20 +16,17 @@ pub fn render_frame(app_window: &mut AppWindow) {
     let now = Instant::now();
 
     let imgui = app_window.imgui.as_mut().unwrap();
+    let mut state = &mut app_window.state;
 
-    {
-        let mut state = app_window.state.borrow_mut();
+    let delta_time = now - state.last_frame;
+    let io = imgui.context.io_mut();
+    io.update_delta_time(delta_time);
+    state.last_frame = now;
 
-        let delta_time = now - state.last_frame;
-        let io = imgui.context.io_mut();
-        io.update_delta_time(delta_time);
-        state.last_frame = now;
-
-        io.config_flags = io.config_flags | ConfigFlags::DOCKING_ENABLE;
-        imgui
-            .context
-            .set_ini_filename(Some(PathBuf::from("./imgui.ini")));
-    }
+    io.config_flags = io.config_flags | ConfigFlags::DOCKING_ENABLE;
+    imgui
+        .context
+        .set_ini_filename(Some(PathBuf::from("./imgui.ini")));
 
     let frame = match app_window.surface.get_current_texture() {
         Ok(frame) => frame,
@@ -41,10 +36,7 @@ pub fn render_frame(app_window: &mut AppWindow) {
         }
     };
     let frame_count = imgui.context.frame_count();
-    {
-        let mut state = app_window.state.borrow_mut();
-        state.frame_count = frame_count;
-    }
+    state.frame_count = frame_count;
 
     imgui
         .platform
@@ -56,43 +48,34 @@ pub fn render_frame(app_window: &mut AppWindow) {
     let inner_size = window.inner_size();
 
     ui.dockspace_over_main_viewport();
+    let dt = now - state.last_frame_measure_time;
 
-    let mut demo_open: bool;
-    {
-        let mut state = app_window.state.borrow_mut();
-        let dt = now - state.last_frame_measure_time;
+    if dt > Duration::from_secs(1) {
+        // TODO: cleanup frame rate
+        // let frame_rate2 = ui.io().framerate;
+        let frame_rate = frame_count - state.last_measure_frame_count;
 
-        if dt > Duration::from_secs(1) {
-            // TODO: cleanup frame rate
-            // let frame_rate2 = ui.io().framerate;
-            let frame_rate = frame_count - state.last_measure_frame_count;
-
-            state.frame_rate = frame_rate;
-            state.last_frame_measure_time = now;
-            state.last_measure_frame_count = frame_count;
-        }
-
-        demo_open = state.demo_open;
+        state.frame_rate = frame_rate;
+        state.last_frame_measure_time = now;
+        state.last_measure_frame_count = frame_count;
     }
+
+    let mut demo_open = state.demo_open;
 
     // TODO: render two windows instead main and child windows
 
     if demo_open {
         ui.show_demo_window(&mut demo_open);
     } else {
-        {
-            let mut state = app_window.state.borrow_mut();
-
-            if ui.is_key_pressed(imgui::Key::Tab) {
-                state.focused_window_left = !state.focused_window_left;
-            }
+        if ui.is_key_pressed(imgui::Key::Tab) {
+            state.focused_window_left = !state.focused_window_left;
         }
 
         let mut path_to_open_option: Option<PathBuf>;
 
         path_to_open_option = render_files_window(
             ui,
-            app_window.state.clone(),
+            &mut state,
             inner_size.width as f32 / 2.0,
             inner_size.height as f32,
             Side::Left,
@@ -103,8 +86,6 @@ pub fn render_frame(app_window: &mut AppWindow) {
             log::info!("left window path_to_open: {}", path_to_open.display());
 
             if files::is_dir(&path_to_open) {
-                let mut state = app_window.state.borrow_mut();
-
                 let path_str = path_to_open.as_path().to_str().unwrap();
                 let files = files::read_directory(path_str);
 
@@ -119,7 +100,7 @@ pub fn render_frame(app_window: &mut AppWindow) {
 
         path_to_open_option = render_files_window(
             ui,
-            app_window.state.clone(),
+            &mut state,
             inner_size.width as f32 / 2.0,
             inner_size.height as f32,
             Side::Right,
@@ -129,8 +110,6 @@ pub fn render_frame(app_window: &mut AppWindow) {
             log::info!("right window path_to_open: {}", path_to_open.display());
 
             if files::is_dir(&path_to_open) {
-                let mut state = app_window.state.borrow_mut();
-
                 let path_str = path_to_open.as_path().to_str().unwrap();
                 let files = files::read_directory(path_str);
 
@@ -148,13 +127,9 @@ pub fn render_frame(app_window: &mut AppWindow) {
             &wgpu::CommandEncoderDescriptor { label: None },
         );
 
-    {
-        let mut state = app_window.state.borrow_mut();
-
-        if state.last_cursor != ui.mouse_cursor() {
-            state.last_cursor = ui.mouse_cursor();
-            imgui.platform.prepare_render(&ui, &app_window.window);
-        }
+    if state.last_cursor != ui.mouse_cursor() {
+        state.last_cursor = ui.mouse_cursor();
+        imgui.platform.prepare_render(&ui, &app_window.window);
     }
 
     let view = frame
@@ -197,24 +172,29 @@ pub fn render_frame(app_window: &mut AppWindow) {
 /// Renders files window (left or right).
 fn render_files_window(
     ui: &Ui,
-    state: Rc<RefCell<AppState>>,
+    mut state: &mut AppState,
     width: f32,
     height: f32,
     side: Side,
 ) -> Option<PathBuf> {
     let window_name: String = format!("{} window", side.as_str());
-    let is_window_focused = state.borrow().is_window_focused(side);
+    let is_window_focused = state.is_window_focused(side);
 
     let mut path_to_open_option: Option<PathBuf> = None;
+
+    // TODO: unable to hide title bar
 
     ui.window(window_name)
         .position([0.0, 0.0], Condition::FirstUseEver)
         .size([width, height], Condition::FirstUseEver)
         .collapsible(false)
         .focused(is_window_focused)
+        .movable(false)
+        .menu_bar(false)
+        .title_bar(false)
+        .no_decoration()
         .build(|| {
             {
-                let mut state = state.borrow_mut();
                 let files_len = state.get_window_files(side).len();
 
                 let has_window_focus = ui.is_window_focused_with_flags(
@@ -255,41 +235,33 @@ fn render_files_window(
                 ui.text(format!("Path: {path}"));
             }
 
-            let render_table_result = render_table(ui, state.clone(), side);
+            let render_table_result = render_table(ui, &mut state, side);
 
-            {
-                let mut state = state.borrow_mut();
-
-                if render_table_result.table_clicked {
-                    log::debug!("{} table clicked", side.as_str());
-                    state.focus_window(side);
-                }
-
-                if let Some(idx) = render_table_result.to_open_idx {
-                    let files = state.get_window_files(side);
-                    let path = state.get_path(side);
-                    let element_to_open = &files[idx];
-                    let path_to_open: PathBuf =
-                        [path, element_to_open].iter().collect();
-
-                    path_to_open_option = Some(path_to_open);
-                }
+            if render_table_result.table_clicked {
+                log::debug!("{} table clicked", side.as_str());
+                state.focus_window(side);
             }
 
-            {
-                let state = state.borrow();
-                let frame_rate = state.frame_rate;
-                let frame_count = state.frame_count;
+            if let Some(idx) = render_table_result.to_open_idx {
+                let files = state.get_window_files(side);
+                let path = state.get_path(side);
+                let element_to_open = &files[idx];
+                let path_to_open: PathBuf =
+                    [path, element_to_open].iter().collect();
 
-                ui.text(format!("Frame rate: {frame_rate} FPS",));
-                ui.text(format!("Frame count: {frame_count}"));
+                path_to_open_option = Some(path_to_open);
             }
+
+            let frame_rate = state.frame_rate;
+            let frame_count = state.frame_count;
+
+            ui.text(format!("Frame rate: {frame_rate} FPS",));
+            ui.text(format!("Frame count: {frame_count}"));
         });
 
     if ui.is_item_clicked() {
         log::debug!("{} window clicked", side.as_str());
 
-        let mut state = state.borrow_mut();
         state.focus_window(side);
     }
 
@@ -299,7 +271,7 @@ fn render_files_window(
 /// Renders table and some debug info about it.
 fn render_table(
     ui: &Ui,
-    state: Rc<RefCell<AppState>>,
+    state: &mut AppState,
     side: Side,
 ) -> RenderTableResult {
     let table_token = ui
@@ -310,7 +282,6 @@ fn render_table(
         )
         .unwrap();
 
-    let mut state = state.borrow_mut();
     let files = state.get_window_files(side);
     let mut current_item = state.get_selected_idx(side);
 
