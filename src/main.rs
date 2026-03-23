@@ -20,97 +20,12 @@ use winit::{
 
 use env_logger::Env;
 
-use crate::files::read_directory;
+use crate::files::*;
+use crate::state::*;
 
 mod files;
 mod render;
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub enum Side {
-    Left,
-    Right,
-}
-
-impl Side {
-    fn as_str(&self) -> &'static str {
-        match self {
-            Self::Left => "left",
-            Self::Right => "right",
-        }
-    }
-
-    fn is_left(&self) -> bool {
-        match self {
-            Self::Left => true,
-            Self::Right => false,
-        }
-    }
-}
-
-#[derive(Debug)]
-struct AppFiles {
-    left_path: String,
-    right_path: String,
-    left_files: Vec<String>,
-    right_files: Vec<String>,
-}
-
-#[derive(Debug)]
-struct AppState {
-    demo_open: bool,
-    limit_fps: bool,
-    last_frame: Instant,
-    last_cursor: Option<MouseCursor>,
-    last_frame_measure_time: Instant,
-    last_measure_frame_count: i32,
-    frame_rate: i32,
-    // TODO: make selected idexes optional
-    left_item_selected_idx: i32,
-    right_item_selected_idx: i32,
-    focused_window_left: bool,
-    app_files: AppFiles,
-}
-
-impl AppState {
-    fn is_window_focused(&self, side: Side) -> bool {
-        match side {
-            Side::Left => self.focused_window_left,
-            Side::Right => !self.focused_window_left,
-        }
-    }
-
-    fn get_path(&self, side: Side) -> &str {
-        match side {
-            Side::Left => &self.app_files.left_path,
-            Side::Right => &self.app_files.right_path,
-        }
-    }
-
-    fn get_window_files(&self, side: Side) -> &Vec<String> {
-        match side {
-            Side::Left => &self.app_files.left_files,
-            Side::Right => &self.app_files.right_files,
-        }
-    }
-
-    fn get_selected_idx(&self, side: Side) -> i32 {
-        match side {
-            Side::Left => self.left_item_selected_idx,
-            Side::Right => self.right_item_selected_idx,
-        }
-    }
-
-    fn set_selected_idx(&mut self, side: Side, idx: i32) {
-        match side {
-            Side::Left => {
-                self.left_item_selected_idx = idx;
-            }
-            Side::Right => {
-                self.right_item_selected_idx = idx;
-            }
-        }
-    }
-}
+mod state;
 
 pub struct ImguiState {
     context: imgui::Context,
