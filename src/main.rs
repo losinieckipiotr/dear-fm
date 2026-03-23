@@ -135,8 +135,6 @@ impl AppWindow {
         let surface_desc = Self::get_surface_desc(&window);
         surface.configure(&device, &surface_desc);
 
-        let now = Instant::now();
-
         Self {
             device,
             queue,
@@ -145,25 +143,7 @@ impl AppWindow {
             surface,
             hidpi_factor,
             imgui: None,
-            state: AppState {
-                demo_open: false,
-                limit_fps: true,
-                last_frame: now,
-                last_cursor: None,
-                last_frame_measure_time: now,
-                last_measure_frame_count: 0,
-                frame_rate: 0,
-                left_item_selected_idx: 0,
-                right_item_selected_idx: 0,
-                focused_window_left: true,
-                frame_count: 0,
-                app_files: AppFiles {
-                    left_path: String::from("/Users/piotrlosiniecki"),
-                    right_path: String::from("/Users/piotrlosiniecki/Projects"),
-                    left_files: Vec::new(),
-                    right_files: Vec::new(),
-                },
-            },
+            state: AppState::new(),
         }
     }
 

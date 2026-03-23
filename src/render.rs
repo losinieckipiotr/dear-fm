@@ -68,7 +68,7 @@ pub fn render_frame(app_window: &mut AppWindow) {
         ui.show_demo_window(&mut demo_open);
     } else {
         if ui.is_key_pressed(imgui::Key::Tab) {
-            state.focused_window_left = !state.focused_window_left;
+            state.toggle_window_focus();
         }
 
         let mut path_to_open_option: Option<PathBuf>;
@@ -177,13 +177,15 @@ fn render_files_window(
     height: f32,
     side: Side,
 ) -> Option<PathBuf> {
-    let window_name: String = format!("{} window", side.as_str());
+    let window_name: String = format!("{} window", side);
     let is_window_focused = state.is_window_focused(side);
 
     let mut path_to_open_option: Option<PathBuf> = None;
 
-    // TODO: unable to hide title bar
-
+    /*
+    - [ ] automatic windows resize, can be calculated based in ini file
+    - [ ] unable to hide title bar
+    */
     ui.window(window_name)
         .position([0.0, 0.0], Condition::FirstUseEver)
         .size([width, height], Condition::FirstUseEver)
@@ -195,6 +197,15 @@ fn render_files_window(
         .no_decoration()
         .build(|| {
             {
+                if !ui.is_window_focused() {
+                    if ui.is_window_hovered() {
+                        if ui.is_mouse_clicked(MouseButton::Left) {
+                            log::info!("no focus but click with hover");
+                            state.focus_window(side);
+                        }
+                    }
+                }
+
                 let files_len = state.get_window_files(side).len();
 
                 let has_window_focus = ui.is_window_focused_with_flags(
@@ -205,6 +216,7 @@ fn render_files_window(
 
                 let current_item = state.get_selected_idx(side);
 
+                // TODO: move selecting prev / next index logic to AppState
                 if has_window_focus {
                     if ui.is_key_pressed(imgui::Key::DownArrow) {
                         let next_item = current_item + 1;
@@ -218,7 +230,7 @@ fn render_files_window(
                         }
                     } else if ui.is_key_pressed(imgui::Key::Enter) {
                         // TODO: refactor, with below code when tab element is clicked
-                        log::info!("{} table enter pressed", side.as_str());
+                        log::info!("{} table enter pressed", side);
 
                         let files = state.get_window_files(side);
                         let path = state.get_path(side);
@@ -238,7 +250,7 @@ fn render_files_window(
             let render_table_result = render_table(ui, &mut state, side);
 
             if render_table_result.table_clicked {
-                log::debug!("{} table clicked", side.as_str());
+                log::info!("{} table clicked", side);
                 state.focus_window(side);
             }
 
@@ -258,12 +270,6 @@ fn render_files_window(
             ui.text(format!("Frame rate: {frame_rate} FPS",));
             ui.text(format!("Frame count: {frame_count}"));
         });
-
-    if ui.is_item_clicked() {
-        log::debug!("{} window clicked", side.as_str());
-
-        state.focus_window(side);
-    }
 
     path_to_open_option
 }
@@ -303,6 +309,7 @@ fn render_table(
 
         if clicked {
             log::info!("clicked idx: {idx}");
+
             if ui.is_mouse_double_clicked(MouseButton::Left) {
                 double_clicked_idx = Some(idx);
             }
