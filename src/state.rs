@@ -1,9 +1,12 @@
 use std::{
     fmt::{self, Display},
+    path::PathBuf,
     time::Instant,
 };
 
 use imgui::MouseCursor;
+
+use crate::files;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Side {
@@ -147,5 +150,24 @@ impl AppState {
 
     pub fn toggle_window_focus(&mut self) {
         self.focused_window_left = !self.focused_window_left;
+    }
+
+    pub fn go_to_directory(&mut self, side: Side, path_to_open: &PathBuf) {
+        let files = files::read_directory(&path_to_open);
+
+        match side {
+            Side::Left => {
+                self.app_files.left_path = path_to_open.display().to_string();
+                self.app_files.left_files = files;
+                // TODO: handle case if directory is empty?
+                self.set_selected_idx(side, 0);
+            }
+            Side::Right => {
+                self.app_files.right_path = path_to_open.display().to_string();
+                self.app_files.right_files = files;
+                // TODO: handle case if directory is empty?
+                self.set_selected_idx(side, 0);
+            }
+        }
     }
 }

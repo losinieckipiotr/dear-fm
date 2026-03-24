@@ -6,6 +6,7 @@ use std::{
 use crate::{AppState, AppWindow, Side, files};
 
 use imgui::*;
+use winit::dpi::PhysicalSize;
 
 struct RenderTableResult {
     table_clicked: bool,
@@ -16,7 +17,7 @@ pub fn render_frame(app_window: &mut AppWindow) {
     let now = Instant::now();
 
     let imgui = app_window.imgui.as_mut().unwrap();
-    let mut state = &mut app_window.state;
+    let state = &mut app_window.state;
 
     let delta_time = now - state.last_frame;
     let io = imgui.context.io_mut();
@@ -71,49 +72,8 @@ pub fn render_frame(app_window: &mut AppWindow) {
             state.toggle_window_focus();
         }
 
-        let mut path_to_open_option: Option<PathBuf>;
-
-        path_to_open_option = render_files_window(
-            ui,
-            &mut state,
-            inner_size.width as f32 / 2.0,
-            inner_size.height as f32,
-            Side::Left,
-        );
-
-        // TODO: refacotr left and right side
-        if let Some(path_to_open) = path_to_open_option {
-            log::info!("left window path_to_open: {}", path_to_open.display());
-
-            if files::is_dir(&path_to_open) {
-                let files = files::read_directory(&path_to_open);
-
-                state.app_files.left_path = path_to_open.display().to_string();
-                state.app_files.left_files = files;
-                // TODO: handle case if directory is empty?
-                state.set_selected_idx(Side::Left, 0);
-            }
-        }
-
-        path_to_open_option = render_files_window(
-            ui,
-            &mut state,
-            inner_size.width as f32 / 2.0,
-            inner_size.height as f32,
-            Side::Right,
-        );
-
-        if let Some(path_to_open) = path_to_open_option {
-            log::info!("right window path_to_open: {}", path_to_open.display());
-
-            if files::is_dir(&path_to_open) {
-                let files = files::read_directory(&path_to_open);
-
-                state.app_files.right_path = path_to_open.display().to_string();
-                state.app_files.right_files = files;
-                state.set_selected_idx(Side::Right, 0);
-            }
-        }
+        render_side(Side::Left, ui, state, inner_size);
+        render_side(Side::Right, ui, state, inner_size);
     }
 
     let mut encoder: wgpu::CommandEncoder =
@@ -161,6 +121,29 @@ pub fn render_frame(app_window: &mut AppWindow) {
     app_window.queue.submit(Some(encoder.finish()));
 
     frame.present();
+}
+
+fn render_side(
+    side: Side,
+    ui: &Ui,
+    mut state: &mut AppState,
+    inner_size: PhysicalSize<u32>,
+) {
+    let path_to_open_option = render_files_window(
+        ui,
+        &mut state,
+        inner_size.width as f32 / 2.0,
+        inner_size.height as f32,
+        side,
+    );
+
+    if let Some(path_to_open) = path_to_open_option {
+        log::info!("{} window path_to_open: {}", side, path_to_open.display());
+
+        if files::is_dir(&path_to_open) {
+            state.go_to_directory(side, &path_to_open);
+        }
+    }
 }
 
 /// Renders files window (left or right).
@@ -250,36 +233,19 @@ fn render_files_window(
                 });
 
                 if clicked_index >= 0 {
-                    let mut new_path = PathBuf::new();
+                    let mut path_to_open = PathBuf::new();
 
                     buf.iter().take(clicked_index as usize + 1).for_each(|i| {
-                        new_path.push(i);
+                        path_to_open.push(i);
                     });
 
                     log::info!(
                         "{} window, go back to {}",
                         side,
-                        new_path.display()
+                        path_to_open.display()
                     );
 
-                    let files = files::read_directory(&new_path);
-
-                    match side {
-                        Side::Left => {
-                            state.app_files.left_path =
-                                new_path.display().to_string();
-                            state.app_files.left_files = files;
-                            // TODO: handle case if directory is empty?
-                            state.set_selected_idx(side, 0);
-                        }
-                        Side::Right => {
-                            state.app_files.right_path =
-                                new_path.display().to_string();
-                            state.app_files.right_files = files;
-                            // TODO: handle case if directory is empty?
-                            state.set_selected_idx(side, 0);
-                        }
-                    }
+                    state.go_to_directory(side, &path_to_open);
                 }
             }
 
