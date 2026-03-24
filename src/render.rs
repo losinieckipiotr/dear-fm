@@ -141,7 +141,7 @@ fn render_side(
         log::info!("{} window path_to_open: {}", side, path_to_open.display());
 
         if files::is_dir(&path_to_open) {
-            state.go_to_directory(side, &path_to_open);
+            state.go_to_directory(side, path_to_open);
         }
     }
 }
@@ -210,8 +210,10 @@ fn render_files_window(
                         let files = state.get_window_files(side);
                         let path = state.get_path(side);
                         let element_to_open = &files[current_item as usize];
-                        let path_to_open: PathBuf =
-                            [path, element_to_open].iter().collect();
+
+                        let mut path_to_open = PathBuf::new();
+                        path_to_open.push(path);
+                        path_to_open.push(element_to_open);
 
                         path_to_open_option = Some(path_to_open);
                         // TODO: should i return early?
@@ -245,7 +247,7 @@ fn render_files_window(
                         path_to_open.display()
                     );
 
-                    state.go_to_directory(side, &path_to_open);
+                    state.go_to_directory(side, path_to_open);
                 }
             }
 
@@ -260,8 +262,10 @@ fn render_files_window(
                 let files = state.get_window_files(side);
                 let path = state.get_path(side);
                 let element_to_open = &files[idx];
-                let path_to_open: PathBuf =
-                    [path, element_to_open].iter().collect();
+
+                let mut path_to_open = PathBuf::new();
+                path_to_open.push(path);
+                path_to_open.push(element_to_open);
 
                 path_to_open_option = Some(path_to_open);
             }

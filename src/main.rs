@@ -1,3 +1,5 @@
+use crate::state::*;
+use env_logger::Env;
 use imgui::*;
 use imgui_wgpu::{Renderer, RendererConfig};
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
@@ -16,11 +18,6 @@ use winit::{
     platform::macos::WindowExtMacOS,
     window::Window,
 };
-
-use env_logger::Env;
-
-use crate::files::*;
-use crate::state::*;
 
 mod files;
 mod render;
@@ -233,13 +230,14 @@ impl ApplicationHandler for App {
         let mut app_window = AppWindow::new(event_loop);
         let state = &mut app_window.state;
 
-        // TODO: move reading file system to another thread
-        let left_path = &state.app_files.left_path;
-        let right_path = &state.app_files.right_path;
-
-        state.app_files.left_files = read_directory(&PathBuf::from(left_path));
-        state.app_files.right_files =
-            read_directory(&PathBuf::from(right_path));
+        state.go_to_directory(
+            Side::Left,
+            PathBuf::from("/Users/piotrlosiniecki"),
+        );
+        state.go_to_directory(
+            Side::Right,
+            PathBuf::from("/Users/piotrlosiniecki/Projects"),
+        );
 
         let imgui = app_window.imgui.as_mut().unwrap();
         imgui.platform.handle_event::<()>(

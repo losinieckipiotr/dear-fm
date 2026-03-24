@@ -1,6 +1,6 @@
 use std::{
     fmt::{self, Display},
-    path::PathBuf,
+    path::{Path, PathBuf},
     time::Instant,
 };
 
@@ -37,11 +37,11 @@ impl Display for Side {
 }
 
 #[derive(Debug)]
-pub struct AppFiles {
-    pub left_path: String,
-    pub right_path: String,
-    pub left_files: Vec<String>,
-    pub right_files: Vec<String>,
+struct AppFiles {
+    left_path: PathBuf,
+    right_path: PathBuf,
+    left_files: Vec<String>,
+    right_files: Vec<String>,
 }
 
 // TODO: make constructor and private fields
@@ -64,7 +64,8 @@ pub struct AppState {
     // TODO: make selected idexes optional
     pub left_item_selected_idx: i32,
     pub right_item_selected_idx: i32,
-    pub app_files: AppFiles,
+
+    app_files: AppFiles,
 }
 
 impl AppState {
@@ -89,8 +90,8 @@ impl AppState {
             right_item_selected_idx: 0,
 
             app_files: AppFiles {
-                left_path: String::from("/Users/piotrlosiniecki"),
-                right_path: String::from("/Users/piotrlosiniecki/Projects"),
+                left_path: PathBuf::new(),
+                right_path: PathBuf::new(),
                 left_files: Vec::new(),
                 right_files: Vec::new(),
             },
@@ -104,7 +105,7 @@ impl AppState {
         }
     }
 
-    pub fn get_path(&self, side: Side) -> &str {
+    pub fn get_path(&self, side: Side) -> &Path {
         match side {
             Side::Left => &self.app_files.left_path,
             Side::Right => &self.app_files.right_path,
@@ -152,18 +153,18 @@ impl AppState {
         self.focused_window_left = !self.focused_window_left;
     }
 
-    pub fn go_to_directory(&mut self, side: Side, path_to_open: &PathBuf) {
+    pub fn go_to_directory(&mut self, side: Side, path_to_open: PathBuf) {
         let files = files::read_directory(&path_to_open);
 
         match side {
             Side::Left => {
-                self.app_files.left_path = path_to_open.display().to_string();
+                self.app_files.left_path = path_to_open;
                 self.app_files.left_files = files;
                 // TODO: handle case if directory is empty?
                 self.set_selected_idx(side, 0);
             }
             Side::Right => {
-                self.app_files.right_path = path_to_open.display().to_string();
+                self.app_files.right_path = path_to_open;
                 self.app_files.right_files = files;
                 // TODO: handle case if directory is empty?
                 self.set_selected_idx(side, 0);
