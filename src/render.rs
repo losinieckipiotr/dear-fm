@@ -86,15 +86,12 @@ pub fn render_frame(app_window: &mut AppWindow) {
             log::info!("left window path_to_open: {}", path_to_open.display());
 
             if files::is_dir(&path_to_open) {
-                let path_str = path_to_open.as_path().to_str().unwrap();
-                let files = files::read_directory(path_str);
+                let files = files::read_directory(&path_to_open);
 
-                state.app_files.left_path = path_str.to_string();
+                state.app_files.left_path = path_to_open.display().to_string();
                 state.app_files.left_files = files;
                 // TODO: handle case if directory is empty?
                 state.set_selected_idx(Side::Left, 0);
-
-                app_window.window.request_redraw();
             }
         }
 
@@ -110,14 +107,11 @@ pub fn render_frame(app_window: &mut AppWindow) {
             log::info!("right window path_to_open: {}", path_to_open.display());
 
             if files::is_dir(&path_to_open) {
-                let path_str = path_to_open.as_path().to_str().unwrap();
-                let files = files::read_directory(path_str);
+                let files = files::read_directory(&path_to_open);
 
-                state.app_files.right_path = path_str.to_string();
+                state.app_files.right_path = path_to_open.display().to_string();
                 state.app_files.right_files = files;
                 state.set_selected_idx(Side::Right, 0);
-
-                app_window.window.request_redraw();
             }
         }
     }
@@ -212,8 +206,6 @@ fn render_files_window(
                     imgui::WindowFocusedFlags::CHILD_WINDOWS,
                 );
 
-                ui.text(format!("Has focus: {has_window_focus}"));
-
                 let current_item = state.get_selected_idx(side);
 
                 // TODO: move selecting prev / next index logic to AppState
@@ -244,7 +236,51 @@ fn render_files_window(
                 }
 
                 let path = state.get_path(side);
-                ui.text(format!("Path: {path}"));
+                let buf = PathBuf::from(path);
+
+                let mut clicked_index = -1;
+                buf.iter().enumerate().for_each(|(i, p)| {
+                    if i > 0 {
+                        ui.same_line();
+                    }
+
+                    if ui.button(format!("{}", p.display())) {
+                        clicked_index = i as i32;
+                    }
+                });
+
+                if clicked_index >= 0 {
+                    let mut new_path = PathBuf::new();
+
+                    buf.iter().take(clicked_index as usize + 1).for_each(|i| {
+                        new_path.push(i);
+                    });
+
+                    log::info!(
+                        "{} window, go back to {}",
+                        side,
+                        new_path.display()
+                    );
+
+                    let files = files::read_directory(&new_path);
+
+                    match side {
+                        Side::Left => {
+                            state.app_files.left_path =
+                                new_path.display().to_string();
+                            state.app_files.left_files = files;
+                            // TODO: handle case if directory is empty?
+                            state.set_selected_idx(side, 0);
+                        }
+                        Side::Right => {
+                            state.app_files.right_path =
+                                new_path.display().to_string();
+                            state.app_files.right_files = files;
+                            // TODO: handle case if directory is empty?
+                            state.set_selected_idx(side, 0);
+                        }
+                    }
+                }
             }
 
             let render_table_result = render_table(ui, &mut state, side);

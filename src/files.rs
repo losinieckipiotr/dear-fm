@@ -1,13 +1,13 @@
 use std::{fs, path::PathBuf};
 
-pub fn read_directory(path: &str) -> Vec<String> {
+pub fn read_directory(path: &PathBuf) -> Vec<String> {
     let entries = fs::read_dir(path);
 
     match entries {
         Err(error) => {
             log::error!(
                 "error during directory: '{}' read: {:#?}",
-                path,
+                path.display(),
                 error
             );
 

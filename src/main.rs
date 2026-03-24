@@ -3,6 +3,7 @@ use imgui_wgpu::{Renderer, RendererConfig};
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
 use pollster::block_on;
 use std::{
+    path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -236,8 +237,9 @@ impl ApplicationHandler for App {
         let left_path = &state.app_files.left_path;
         let right_path = &state.app_files.right_path;
 
-        state.app_files.left_files = read_directory(left_path);
-        state.app_files.right_files = read_directory(right_path);
+        state.app_files.left_files = read_directory(&PathBuf::from(left_path));
+        state.app_files.right_files =
+            read_directory(&PathBuf::from(right_path));
 
         let imgui = app_window.imgui.as_mut().unwrap();
         imgui.platform.handle_event::<()>(
