@@ -37,7 +37,6 @@ pub fn render_frame(app_window: &mut AppWindow) {
         }
     };
     let frame_count = imgui.context.frame_count();
-    state.frame_count = frame_count;
 
     imgui
         .platform
@@ -52,8 +51,6 @@ pub fn render_frame(app_window: &mut AppWindow) {
     let dt = now - state.last_frame_measure_time;
 
     if dt > Duration::from_secs(1) {
-        // TODO: cleanup frame rate
-        // let frame_rate2 = ui.io().framerate;
         let frame_rate = frame_count - state.last_measure_frame_count;
 
         state.frame_rate = frame_rate;
@@ -72,8 +69,8 @@ pub fn render_frame(app_window: &mut AppWindow) {
             state.toggle_window_focus();
         }
 
-        render_side(Side::Left, ui, state, inner_size);
-        render_side(Side::Right, ui, state, inner_size);
+        render_side(Side::Left, ui, state, inner_size, frame_count);
+        render_side(Side::Right, ui, state, inner_size, frame_count);
     }
 
     let mut encoder: wgpu::CommandEncoder =
@@ -128,6 +125,7 @@ fn render_side(
     ui: &Ui,
     mut state: &mut AppState,
     inner_size: PhysicalSize<u32>,
+    frame_count: i32,
 ) {
     let path_to_open_option = render_files_window(
         ui,
@@ -135,6 +133,7 @@ fn render_side(
         inner_size.width as f32 / 2.0,
         inner_size.height as f32,
         side,
+        frame_count,
     );
 
     if let Some(path_to_open) = path_to_open_option {
@@ -146,13 +145,13 @@ fn render_side(
     }
 }
 
-/// Renders files window (left or right).
 fn render_files_window(
     ui: &Ui,
     mut state: &mut AppState,
     width: f32,
     height: f32,
     side: Side,
+    frame_count: i32,
 ) -> Option<PathBuf> {
     let window_name: String = format!("{} window", side);
     let is_window_focused = state.is_window_focused(side);
@@ -183,40 +182,22 @@ fn render_files_window(
                     }
                 }
 
-                let files_len = state.get_window_files(side).len();
-
                 let has_window_focus = ui.is_window_focused_with_flags(
                     imgui::WindowFocusedFlags::CHILD_WINDOWS,
                 );
 
-                let current_item = state.get_selected_idx(side);
-
-                // TODO: move selecting prev / next index logic to AppState
                 if has_window_focus {
                     if ui.is_key_pressed(imgui::Key::DownArrow) {
-                        let next_item = current_item + 1;
-                        if next_item < files_len as i32 {
-                            state.set_selected_idx(side, next_item);
-                        }
+                        state.select_next_idx(side);
                     } else if ui.is_key_pressed(imgui::Key::UpArrow) {
-                        let prev_item = current_item - 1;
-                        if prev_item >= 0 {
-                            state.set_selected_idx(side, prev_item);
-                        }
+                        state.select_prev_idx(side);
                     } else if ui.is_key_pressed(imgui::Key::Enter) {
-                        // TODO: refactor, with below code when tab element is clicked
                         log::info!("{} table enter pressed", side);
 
-                        let files = state.get_window_files(side);
-                        let path = state.get_path(side);
-                        let element_to_open = &files[current_item as usize];
-
-                        let mut path_to_open = PathBuf::new();
-                        path_to_open.push(path);
-                        path_to_open.push(element_to_open);
-
-                        path_to_open_option = Some(path_to_open);
-                        // TODO: should i return early?
+                        path_to_open_option = Some(state.get_path_to_open_at(
+                            side,
+                            state.get_selected_idx(side),
+                        ));
                     }
                 }
 
@@ -259,19 +240,11 @@ fn render_files_window(
             }
 
             if let Some(idx) = render_table_result.to_open_idx {
-                let files = state.get_window_files(side);
-                let path = state.get_path(side);
-                let element_to_open = &files[idx];
-
-                let mut path_to_open = PathBuf::new();
-                path_to_open.push(path);
-                path_to_open.push(element_to_open);
-
-                path_to_open_option = Some(path_to_open);
+                path_to_open_option =
+                    Some(state.get_path_to_open_at(side, idx as i32));
             }
 
             let frame_rate = state.frame_rate;
-            let frame_count = state.frame_count;
 
             ui.text(format!("Frame rate: {frame_rate} FPS",));
             ui.text(format!("Frame count: {frame_count}"));
@@ -280,7 +253,6 @@ fn render_files_window(
     path_to_open_option
 }
 
-/// Renders table and some debug info about it.
 fn render_table(
     ui: &Ui,
     state: &mut AppState,

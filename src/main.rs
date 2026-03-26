@@ -95,7 +95,6 @@ impl AppWindow {
         }
     }
 
-    /// TODO: refactor, it also setups app state
     fn setup_gpu(event_loop: &ActiveEventLoop) -> Self {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::PRIMARY,

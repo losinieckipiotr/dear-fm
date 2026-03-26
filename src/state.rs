@@ -54,10 +54,10 @@ pub struct AppState {
 
     pub last_cursor: Option<MouseCursor>,
 
+    // pub frame_count: i32,
+    pub frame_rate: i32,
     pub last_frame_measure_time: Instant,
     pub last_measure_frame_count: i32,
-    pub frame_rate: i32,
-    pub frame_count: i32,
 
     focused_window_left: bool,
 
@@ -82,7 +82,6 @@ impl AppState {
             last_frame_measure_time: now,
             last_measure_frame_count: 0,
             frame_rate: 0,
-            frame_count: 0,
 
             focused_window_left: true,
 
@@ -170,5 +169,36 @@ impl AppState {
                 self.set_selected_idx(side, 0);
             }
         }
+    }
+
+    pub fn select_next_idx(&mut self, side: Side) {
+        let files_len = self.get_window_files(side).len();
+        let current_item = self.get_selected_idx(side);
+
+        let next_item = current_item + 1;
+        if next_item < files_len as i32 {
+            self.set_selected_idx(side, next_item);
+        }
+    }
+
+    pub fn select_prev_idx(&mut self, side: Side) {
+        let current_item = self.get_selected_idx(side);
+
+        let prev_item = current_item - 1;
+        if prev_item >= 0 {
+            self.set_selected_idx(side, prev_item);
+        }
+    }
+
+    pub fn get_path_to_open_at(&self, side: Side, idx: i32) -> PathBuf {
+        let files = self.get_window_files(side);
+        let path = self.get_path(side);
+        let element_to_open = &files[idx as usize];
+
+        let mut path_to_open = PathBuf::new();
+        path_to_open.push(path);
+        path_to_open.push(element_to_open);
+
+        path_to_open
     }
 }
