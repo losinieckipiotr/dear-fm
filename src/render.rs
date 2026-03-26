@@ -241,7 +241,7 @@ fn render_files_window(
 
             if let Some(idx) = render_table_result.to_open_idx {
                 path_to_open_option =
-                    Some(state.get_path_to_open_at(side, idx as i32));
+                    Some(state.get_path_to_open_at(side, idx));
             }
 
             let frame_rate = state.frame_rate;
@@ -292,7 +292,7 @@ fn render_table(
                 double_clicked_idx = Some(idx);
             }
 
-            current_item = idx as i32;
+            current_item = idx;
             any_row_clicked = true;
         }
 

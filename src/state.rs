@@ -61,9 +61,8 @@ pub struct AppState {
 
     focused_window_left: bool,
 
-    // TODO: make selected idexes optional
-    pub left_item_selected_idx: i32,
-    pub right_item_selected_idx: i32,
+    pub left_item_selected_idx: usize,
+    pub right_item_selected_idx: usize,
 
     app_files: AppFiles,
 }
@@ -118,14 +117,14 @@ impl AppState {
         }
     }
 
-    pub fn get_selected_idx(&self, side: Side) -> i32 {
+    pub fn get_selected_idx(&self, side: Side) -> usize {
         match side {
             Side::Left => self.left_item_selected_idx,
             Side::Right => self.right_item_selected_idx,
         }
     }
 
-    pub fn set_selected_idx(&mut self, side: Side, idx: i32) {
+    pub fn set_selected_idx(&mut self, side: Side, idx: usize) {
         match side {
             Side::Left => {
                 self.left_item_selected_idx = idx;
@@ -176,7 +175,7 @@ impl AppState {
         let current_item = self.get_selected_idx(side);
 
         let next_item = current_item + 1;
-        if next_item < files_len as i32 {
+        if next_item < files_len {
             self.set_selected_idx(side, next_item);
         }
     }
@@ -184,13 +183,12 @@ impl AppState {
     pub fn select_prev_idx(&mut self, side: Side) {
         let current_item = self.get_selected_idx(side);
 
-        let prev_item = current_item - 1;
-        if prev_item >= 0 {
-            self.set_selected_idx(side, prev_item);
+        if current_item > 0 {
+            self.set_selected_idx(side, current_item - 1);
         }
     }
 
-    pub fn get_path_to_open_at(&self, side: Side, idx: i32) -> PathBuf {
+    pub fn get_path_to_open_at(&self, side: Side, idx: usize) -> PathBuf {
         let files = self.get_window_files(side);
         let path = self.get_path(side);
         let element_to_open = &files[idx as usize];
