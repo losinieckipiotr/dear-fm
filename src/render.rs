@@ -1,11 +1,14 @@
+use crate::{
+    AppState, AppWindow, Side,
+    files::{self},
+};
+use chrono::{DateTime, Local};
+use humansize::{DECIMAL, format_size};
+use imgui::*;
 use std::{
     path::PathBuf,
     time::{Duration, Instant},
 };
-
-use crate::{AppState, AppWindow, Side, files};
-
-use imgui::*;
 use winit::dpi::PhysicalSize;
 
 struct RenderTableResult {
@@ -261,8 +264,11 @@ fn render_table(
     let table_token = ui
         .begin_table_with_flags(
             "table",
-            2,
-            TableFlags::SORTABLE | TableFlags::RESIZABLE | TableFlags::ROW_BG,
+            3,
+            TableFlags::SORTABLE
+                | TableFlags::RESIZABLE
+                | TableFlags::ROW_BG
+                | TableFlags::SIZING_FIXED_FIT,
         )
         .unwrap();
 
@@ -277,8 +283,8 @@ fn render_table(
         ui.table_next_column();
 
         let clicked = ui
-            .selectable_config(format!("{idx}"))
-            .selected(idx == current_item as usize)
+            .selectable_config(&file.file_name)
+            .selected(idx == current_item)
             .flags(
                 SelectableFlags::SPAN_ALL_COLUMNS
                     | SelectableFlags::ALLOW_DOUBLE_CLICK,
@@ -297,7 +303,29 @@ fn render_table(
         }
 
         ui.table_next_column();
-        ui.text(file);
+
+        if file.is_go_back_record {
+            ui.text("");
+            ui.table_next_column();
+            ui.text("");
+        } else {
+            let size = file.size;
+            let is_file = file.is_file;
+            let modified = file.modified;
+
+            let formatted_size: String =
+                format_size(size, DECIMAL.decimal_places(1));
+            if is_file {
+                ui.text(formatted_size);
+            } else {
+                ui.text("--");
+            }
+            ui.table_next_column();
+
+            let datetime: DateTime<Local> = modified.into();
+
+            ui.text(format!("{}", datetime.format("%d %b %Y at %H:%M")));
+        }
     }
 
     table_token.end();

@@ -7,7 +7,7 @@ use std::{
 
 use imgui::MouseCursor;
 
-use crate::files;
+use crate::files::{self, FileRecord};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Side {
@@ -41,8 +41,8 @@ impl Display for Side {
 struct AppFiles {
     left_path: PathBuf,
     right_path: PathBuf,
-    left_files: Vec<String>,
-    right_files: Vec<String>,
+    left_files: Vec<FileRecord>,
+    right_files: Vec<FileRecord>,
 }
 
 #[derive(Debug)]
@@ -110,7 +110,7 @@ impl AppState {
         }
     }
 
-    pub fn get_window_files(&self, side: Side) -> &Vec<String> {
+    pub fn get_window_files(&self, side: Side) -> &Vec<FileRecord> {
         match side {
             Side::Left => &self.app_files.left_files,
             Side::Right => &self.app_files.right_files,
@@ -152,14 +152,11 @@ impl AppState {
     }
 
     pub fn go_to_directory(&mut self, side: Side, path_to_open: PathBuf) {
-        let mut read_files = files::read_directory(&path_to_open);
-        let mut files = vec![String::from("..")];
-
-        files.append(&mut read_files);
+        let files = files::read_directory(&path_to_open);
+        let new_path = canonicalize(path_to_open).unwrap();
 
         match side {
             Side::Left => {
-                let new_path = canonicalize(path_to_open).unwrap();
                 log::debug!("new_path: {}", new_path.display());
 
                 self.app_files.left_path = new_path;
@@ -167,7 +164,6 @@ impl AppState {
                 self.set_selected_idx(side, 0);
             }
             Side::Right => {
-                let new_path = canonicalize(path_to_open).unwrap();
                 log::debug!("new_path: {}", new_path.display());
 
                 self.app_files.right_path = new_path;
@@ -198,7 +194,7 @@ impl AppState {
     pub fn get_path_to_open_at(&self, side: Side, idx: usize) -> PathBuf {
         let files = self.get_window_files(side);
         let path = self.get_path(side);
-        let element_to_open = &files[idx as usize];
+        let element_to_open = &files[idx].file_name;
 
         let mut path_to_open = PathBuf::new();
         path_to_open.push(path);
