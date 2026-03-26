@@ -137,7 +137,7 @@ fn render_side(
     );
 
     if let Some(path_to_open) = path_to_open_option {
-        log::info!("{} window path_to_open: {}", side, path_to_open.display());
+        log::debug!("{} window path_to_open: {}", side, path_to_open.display());
 
         if files::is_dir(&path_to_open) {
             state.go_to_directory(side, path_to_open);
@@ -176,7 +176,7 @@ fn render_files_window(
                 if !ui.is_window_focused() {
                     if ui.is_window_hovered() {
                         if ui.is_mouse_clicked(MouseButton::Left) {
-                            log::info!("no focus but click with hover");
+                            log::debug!("no focus but click with hover");
                             state.focus_window(side);
                         }
                     }
@@ -192,7 +192,7 @@ fn render_files_window(
                     } else if ui.is_key_pressed(imgui::Key::UpArrow) {
                         state.select_prev_idx(side);
                     } else if ui.is_key_pressed(imgui::Key::Enter) {
-                        log::info!("{} table enter pressed", side);
+                        log::debug!("{} table enter pressed", side);
 
                         path_to_open_option = Some(state.get_path_to_open_at(
                             side,
@@ -222,7 +222,7 @@ fn render_files_window(
                         path_to_open.push(i);
                     });
 
-                    log::info!(
+                    log::debug!(
                         "{} window, go back to {}",
                         side,
                         path_to_open.display()
@@ -235,7 +235,7 @@ fn render_files_window(
             let render_table_result = render_table(ui, &mut state, side);
 
             if render_table_result.table_clicked {
-                log::info!("{} table clicked", side);
+                log::debug!("{} table clicked", side);
                 state.focus_window(side);
             }
 
@@ -286,7 +286,7 @@ fn render_table(
             .build();
 
         if clicked {
-            log::info!("clicked idx: {idx}");
+            log::debug!("clicked idx: {idx}");
 
             if ui.is_mouse_double_clicked(MouseButton::Left) {
                 double_clicked_idx = Some(idx);

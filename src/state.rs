@@ -1,5 +1,6 @@
 use std::{
     fmt::{self, Display},
+    fs::canonicalize,
     path::{Path, PathBuf},
     time::Instant,
 };
@@ -44,8 +45,6 @@ struct AppFiles {
     right_files: Vec<String>,
 }
 
-// TODO: make constructor and private fields
-
 #[derive(Debug)]
 pub struct AppState {
     pub demo_open: bool,
@@ -54,7 +53,6 @@ pub struct AppState {
 
     pub last_cursor: Option<MouseCursor>,
 
-    // pub frame_count: i32,
     pub frame_rate: i32,
     pub last_frame_measure_time: Instant,
     pub last_measure_frame_count: i32,
@@ -65,6 +63,8 @@ pub struct AppState {
     pub right_item_selected_idx: usize,
 
     app_files: AppFiles,
+    // TODO: save index position in given folder
+    // and select this index if we go back to that folder again
 }
 
 impl AppState {
@@ -152,19 +152,26 @@ impl AppState {
     }
 
     pub fn go_to_directory(&mut self, side: Side, path_to_open: PathBuf) {
-        let files = files::read_directory(&path_to_open);
+        let mut read_files = files::read_directory(&path_to_open);
+        let mut files = vec![String::from("..")];
+
+        files.append(&mut read_files);
 
         match side {
             Side::Left => {
-                self.app_files.left_path = path_to_open;
+                let new_path = canonicalize(path_to_open).unwrap();
+                log::debug!("new_path: {}", new_path.display());
+
+                self.app_files.left_path = new_path;
                 self.app_files.left_files = files;
-                // TODO: handle case if directory is empty?
                 self.set_selected_idx(side, 0);
             }
             Side::Right => {
-                self.app_files.right_path = path_to_open;
+                let new_path = canonicalize(path_to_open).unwrap();
+                log::debug!("new_path: {}", new_path.display());
+
+                self.app_files.right_path = new_path;
                 self.app_files.right_files = files;
-                // TODO: handle case if directory is empty?
                 self.set_selected_idx(side, 0);
             }
         }
