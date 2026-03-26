@@ -101,14 +101,14 @@ impl AppWindow {
             ..Default::default()
         });
 
-        // let monitor = event_loop.primary_monitor().unwrap();
-        // let size = monitor.size();
+        let monitor = event_loop.primary_monitor().unwrap();
+        let size = monitor.size();
 
         let window = {
             let version = env!("CARGO_PKG_VERSION");
 
             let attributes = Window::default_attributes()
-                // .with_inner_size(LogicalSize::new(size.width, size.height))
+                .with_inner_size(size)
                 .with_title(format!("Dear File Manager {version}"));
             Arc::new(event_loop.create_window(attributes).unwrap())
         };
