@@ -197,10 +197,10 @@ fn render_files_window(
                     } else if ui.is_key_pressed(imgui::Key::Enter) {
                         log::debug!("{} table enter pressed", side);
 
-                        path_to_open_option = Some(state.get_path_to_open_at(
-                            side,
-                            state.get_selected_idx(side),
-                        ));
+                        if let Some(idx) = state.get_selected_idx(side) {
+                            path_to_open_option =
+                                Some(state.get_path_to_open_at(side, idx));
+                        }
                     }
                 }
 
@@ -261,6 +261,8 @@ fn render_table(
     state: &mut AppState,
     side: Side,
 ) -> RenderTableResult {
+    log::debug!("render_table");
+
     let table_token = ui
         .begin_table_with_flags(
             "table",
@@ -282,9 +284,16 @@ fn render_table(
         ui.table_next_row();
         ui.table_next_column();
 
+        let is_selected = match current_item {
+            Some(current_item_idx) => idx == current_item_idx,
+            None => false,
+        };
+
+        log::debug!("idx: {}, is_selected: {}", idx, is_selected);
+
         let clicked = ui
             .selectable_config(&file.file_name)
-            .selected(idx == current_item)
+            .selected(is_selected)
             .flags(
                 SelectableFlags::SPAN_ALL_COLUMNS
                     | SelectableFlags::ALLOW_DOUBLE_CLICK,
@@ -298,7 +307,7 @@ fn render_table(
                 double_clicked_idx = Some(idx);
             }
 
-            current_item = idx;
+            current_item = Some(idx);
             any_row_clicked = true;
         }
 
@@ -330,9 +339,10 @@ fn render_table(
 
     table_token.end();
 
-    state.set_selected_idx(side, current_item);
-
-    ui.text(format!("current_item: {current_item}"));
+    if let Some(current_item_idx) = current_item {
+        state.set_selected_idx(side, current_item_idx);
+        ui.text(format!("current_item_idx: {current_item_idx}"));
+    }
 
     RenderTableResult {
         table_clicked: any_row_clicked,

@@ -237,6 +237,7 @@ impl ApplicationHandler for App {
             Side::Right,
             PathBuf::from("/Users/piotrlosiniecki/Projects"),
         );
+        state.focus_window(Side::Left);
 
         let imgui = app_window.imgui.as_mut().unwrap();
         imgui.platform.handle_event::<()>(

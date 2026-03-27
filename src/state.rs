@@ -59,8 +59,8 @@ pub struct AppState {
 
     focused_window_left: bool,
 
-    pub left_item_selected_idx: usize,
-    pub right_item_selected_idx: usize,
+    pub left_item_selected_idx: Option<usize>,
+    pub right_item_selected_idx: Option<usize>,
 
     app_files: AppFiles,
     // TODO: save index position in given folder
@@ -84,8 +84,8 @@ impl AppState {
 
             focused_window_left: true,
 
-            left_item_selected_idx: 0,
-            right_item_selected_idx: 0,
+            left_item_selected_idx: None,
+            right_item_selected_idx: None,
 
             app_files: AppFiles {
                 left_path: PathBuf::new(),
@@ -117,7 +117,7 @@ impl AppState {
         }
     }
 
-    pub fn get_selected_idx(&self, side: Side) -> usize {
+    pub fn get_selected_idx(&self, side: Side) -> Option<usize> {
         match side {
             Side::Left => self.left_item_selected_idx,
             Side::Right => self.right_item_selected_idx,
@@ -125,17 +125,30 @@ impl AppState {
     }
 
     pub fn set_selected_idx(&mut self, side: Side, idx: usize) {
+        let some_idx = Some(idx);
+
         match side {
             Side::Left => {
-                self.left_item_selected_idx = idx;
+                self.left_item_selected_idx = some_idx;
             }
             Side::Right => {
-                self.right_item_selected_idx = idx;
+                self.right_item_selected_idx = some_idx;
             }
         }
     }
 
     pub fn focus_window(&mut self, side: Side) {
+        match side {
+            Side::Left => {
+                self.left_item_selected_idx = Some(0);
+                self.right_item_selected_idx = None;
+            }
+            Side::Right => {
+                self.left_item_selected_idx = None;
+                self.right_item_selected_idx = Some(0);
+            }
+        }
+
         self.focused_window_left = side.is_left();
     }
 
@@ -148,7 +161,11 @@ impl AppState {
     }
 
     pub fn toggle_window_focus(&mut self) {
-        self.focused_window_left = !self.focused_window_left;
+        if self.focused_window_left {
+            self.focus_window(Side::Right);
+        } else {
+            self.focus_window(Side::Left);
+        }
     }
 
     pub fn go_to_directory(&mut self, side: Side, path_to_open: PathBuf) {
@@ -161,6 +178,7 @@ impl AppState {
 
                 self.app_files.left_path = new_path;
                 self.app_files.left_files = files;
+                // TODO: we need cache to remeber previous select positon
                 self.set_selected_idx(side, 0);
             }
             Side::Right => {
@@ -175,7 +193,10 @@ impl AppState {
 
     pub fn select_next_idx(&mut self, side: Side) {
         let files_len = self.get_window_files(side).len();
-        let current_item = self.get_selected_idx(side);
+        let current_item = match self.get_selected_idx(side) {
+            Some(idx) => idx,
+            None => 0,
+        };
 
         let next_item = current_item + 1;
         if next_item < files_len {
@@ -184,7 +205,10 @@ impl AppState {
     }
 
     pub fn select_prev_idx(&mut self, side: Side) {
-        let current_item = self.get_selected_idx(side);
+        let current_item = match self.get_selected_idx(side) {
+            Some(idx) => idx,
+            None => 0,
+        };
 
         if current_item > 0 {
             self.set_selected_idx(side, current_item - 1);
