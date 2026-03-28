@@ -1,6 +1,6 @@
 use crate::{
     AppState, AppWindow, Side,
-    files::{self},
+    files::{self, SortBy, SortDirection},
 };
 use chrono::{DateTime, Local};
 use humansize::{DECIMAL, format_size};
@@ -40,6 +40,7 @@ pub fn render_frame(app_window: &mut AppWindow) {
         }
     };
     let frame_count = imgui.context.frame_count();
+    state.frame_count = frame_count;
 
     imgui
         .platform
@@ -72,8 +73,8 @@ pub fn render_frame(app_window: &mut AppWindow) {
             state.toggle_window_focus();
         }
 
-        render_side(Side::Left, ui, state, inner_size, frame_count);
-        render_side(Side::Right, ui, state, inner_size, frame_count);
+        render_side(Side::Left, ui, state, inner_size);
+        render_side(Side::Right, ui, state, inner_size);
     }
 
     let mut encoder: wgpu::CommandEncoder =
@@ -128,7 +129,6 @@ fn render_side(
     ui: &Ui,
     mut state: &mut AppState,
     inner_size: PhysicalSize<u32>,
-    frame_count: i32,
 ) {
     let path_to_open_option = render_files_window(
         ui,
@@ -136,7 +136,6 @@ fn render_side(
         inner_size.width as f32 / 2.0,
         inner_size.height as f32,
         side,
-        frame_count,
     );
 
     if let Some(path_to_open) = path_to_open_option {
@@ -154,7 +153,6 @@ fn render_files_window(
     width: f32,
     height: f32,
     side: Side,
-    frame_count: i32,
 ) -> Option<PathBuf> {
     let window_name: String = format!("{} window", side);
     let is_window_focused = state.is_window_focused(side);
@@ -248,6 +246,7 @@ fn render_files_window(
             }
 
             let frame_rate = state.frame_rate;
+            let frame_count = state.frame_count;
 
             ui.text(format!("Frame rate: {frame_rate} FPS",));
             ui.text(format!("Frame count: {frame_count}"));
@@ -264,9 +263,13 @@ fn render_table(
     log::debug!("render_table");
 
     let table_token = ui
-        .begin_table_with_flags(
+        .begin_table_header_with_flags(
             "table",
-            3,
+            [
+                TableColumnSetup::new("Name"),
+                TableColumnSetup::new("Size"),
+                TableColumnSetup::new("Modified"),
+            ],
             TableFlags::SORTABLE
                 | TableFlags::RESIZABLE
                 | TableFlags::ROW_BG
@@ -274,9 +277,38 @@ fn render_table(
         )
         .unwrap();
 
+    if let Some(sort_data) = ui.table_sort_specs_mut() {
+        sort_data.conditional_sort(|specs| {
+            let spec = specs.iter().next().unwrap();
+
+            let get_sort_by = |column_idx: usize| -> SortBy {
+                match column_idx {
+                    0 => SortBy::Name,
+                    1 => SortBy::Size,
+                    2 => SortBy::Modified,
+                    _ => unimplemented!(),
+                }
+            };
+
+            if let Some(kind) = spec.sort_direction() {
+                let (sort_by, direction) = match kind {
+                    TableSortDirection::Ascending => (
+                        get_sort_by(spec.column_idx()),
+                        SortDirection::Ascending,
+                    ),
+                    TableSortDirection::Descending => (
+                        get_sort_by(spec.column_idx()),
+                        SortDirection::Descending,
+                    ),
+                };
+
+                state.sort_window_files(side, sort_by, direction);
+            }
+        });
+    }
+
     let files = state.get_window_files(side);
     let mut current_item = state.get_selected_idx(side);
-
     let mut double_clicked_idx: Option<usize> = None;
     let mut any_row_clicked = false;
 

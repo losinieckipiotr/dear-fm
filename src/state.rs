@@ -7,7 +7,7 @@ use std::{
 
 use imgui::MouseCursor;
 
-use crate::files::{self, FileRecord};
+use crate::files::{self, FileRecord, SortBy, SortDirection};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Side {
@@ -53,9 +53,10 @@ pub struct AppState {
 
     pub last_cursor: Option<MouseCursor>,
 
-    pub frame_rate: i32,
     pub last_frame_measure_time: Instant,
     pub last_measure_frame_count: i32,
+    pub frame_rate: i32,
+    pub frame_count: i32,
 
     focused_window_left: bool,
 
@@ -81,6 +82,7 @@ impl AppState {
             last_frame_measure_time: now,
             last_measure_frame_count: 0,
             frame_rate: 0,
+            frame_count: 0,
 
             focused_window_left: true,
 
@@ -115,6 +117,20 @@ impl AppState {
             Side::Left => &self.app_files.left_files,
             Side::Right => &self.app_files.right_files,
         }
+    }
+
+    pub fn sort_window_files(
+        &mut self,
+        side: Side,
+        sort_by: SortBy,
+        direction: SortDirection,
+    ) {
+        let files = match side {
+            Side::Left => &mut self.app_files.left_files,
+            Side::Right => &mut self.app_files.right_files,
+        };
+
+        FileRecord::sort_records(files, sort_by, direction);
     }
 
     pub fn get_selected_idx(&self, side: Side) -> Option<usize> {
@@ -169,22 +185,29 @@ impl AppState {
     }
 
     pub fn go_to_directory(&mut self, side: Side, path_to_open: PathBuf) {
-        let files = files::read_directory(&path_to_open);
-        let new_path = canonicalize(path_to_open).unwrap();
+        log::debug!("go_to_directory path_to_open: {}", path_to_open.display());
+
+        let canon_path = canonicalize(path_to_open).unwrap();
+        let mut files = files::read_directory(&canon_path);
+
+        log::debug!("go_to_directory canon_path: {}", canon_path.display());
+        if canon_path != PathBuf::from("/") {
+            files.insert(0, FileRecord::new_go_back_record());
+        }
 
         match side {
             Side::Left => {
-                log::debug!("new_path: {}", new_path.display());
+                log::debug!("new_path: {}", canon_path.display());
 
-                self.app_files.left_path = new_path;
+                self.app_files.left_path = canon_path;
                 self.app_files.left_files = files;
                 // TODO: we need cache to remeber previous select positon
                 self.set_selected_idx(side, 0);
             }
             Side::Right => {
-                log::debug!("new_path: {}", new_path.display());
+                log::debug!("new_path: {}", canon_path.display());
 
-                self.app_files.right_path = new_path;
+                self.app_files.right_path = canon_path;
                 self.app_files.right_files = files;
                 self.set_selected_idx(side, 0);
             }

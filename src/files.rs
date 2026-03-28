@@ -1,4 +1,5 @@
 use std::{
+    cmp::Reverse,
     fs::{self, canonicalize},
     os::unix::fs::MetadataExt,
     path::PathBuf,
@@ -7,7 +8,18 @@ use std::{
 
 const GO_BACK_FILE_NAME: &'static str = "..";
 
-#[derive(Debug, Eq, PartialEq, Ord, PartialOrd)]
+pub enum SortBy {
+    Name,
+    Size,
+    Modified,
+}
+
+pub enum SortDirection {
+    Ascending,
+    Descending,
+}
+
+#[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Clone)]
 pub struct FileRecord {
     pub file_name: String,
     pub is_file: bool,
@@ -17,7 +29,7 @@ pub struct FileRecord {
 }
 
 impl FileRecord {
-    fn new_go_back_record() -> FileRecord {
+    pub fn new_go_back_record() -> FileRecord {
         FileRecord {
             file_name: String::from(GO_BACK_FILE_NAME),
             is_file: false,
@@ -26,10 +38,41 @@ impl FileRecord {
             is_go_back_record: true,
         }
     }
+
+    pub fn sort_records(
+        files: &mut Vec<Self>,
+        sort_by: SortBy,
+        direction: SortDirection,
+    ) {
+        let go_back_index =
+            files.iter().position(|f| f.is_go_back_record).unwrap();
+
+        files.remove(go_back_index);
+
+        match direction {
+            SortDirection::Ascending => match sort_by {
+                SortBy::Name => {
+                    files.sort_by(|a, b| a.file_name.cmp(&b.file_name))
+                }
+                SortBy::Size => files.sort_by_key(|file| file.size),
+                SortBy::Modified => files.sort_by_key(|file| file.modified),
+            },
+            SortDirection::Descending => match sort_by {
+                SortBy::Name => {
+                    files.sort_by_key(|file| Reverse(file.file_name.clone()))
+                }
+                SortBy::Size => files.sort_by_key(|file| Reverse(file.size)),
+                SortBy::Modified => {
+                    files.sort_by_key(|file| Reverse(file.modified))
+                }
+            },
+        }
+
+        files.insert(0, FileRecord::new_go_back_record());
+    }
 }
 
 pub fn read_directory(path: &PathBuf) -> Vec<FileRecord> {
-    let canon_path = canonicalize(path).unwrap();
     let entries = fs::read_dir(path);
 
     match entries {
@@ -43,8 +86,7 @@ pub fn read_directory(path: &PathBuf) -> Vec<FileRecord> {
             Vec::new()
         }
         Ok(entries) => {
-            let mut files = vec![];
-            let mut read_files: Vec<FileRecord> = entries
+            let read_files: Vec<FileRecord> = entries
                 .filter_map(|e| match e {
                     Ok(entry) => {
                         let file_name = String::from(
@@ -76,17 +118,7 @@ pub fn read_directory(path: &PathBuf) -> Vec<FileRecord> {
                 })
                 .collect();
 
-            read_files.sort_by(|a, b| a.file_name.cmp(&b.file_name));
-
-            log::debug!("path: {}", canon_path.display());
-
-            if canon_path != PathBuf::from("/") {
-                files.push(FileRecord::new_go_back_record());
-            }
-
-            files.append(&mut read_files);
-
-            files
+            read_files
         }
     }
 }
