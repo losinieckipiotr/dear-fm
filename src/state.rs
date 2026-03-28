@@ -242,6 +242,18 @@ impl AppState {
         self.set_selected_idx(side, 0);
     }
 
+    pub fn go_to_if_directory(&mut self, side: Side, path_to_open: PathBuf) {
+        log::debug!(
+            "go_to_if_directory side: {}, path_to_open: {}, ",
+            side,
+            path_to_open.display(),
+        );
+
+        if files::is_dir(&path_to_open) {
+            self.go_to_directory(side, path_to_open);
+        }
+    }
+
     pub fn select_next_idx(&mut self, side: Side) {
         let files_len = self.get_window_files(side).len();
         let current_item = match self.get_selected_idx(side) {

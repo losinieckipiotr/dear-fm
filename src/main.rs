@@ -20,7 +20,9 @@ use winit::{
 };
 
 mod files;
-mod render;
+mod render_files_window;
+mod render_frame;
+mod render_table;
 mod state;
 
 pub struct ImguiState {
@@ -284,7 +286,7 @@ impl ApplicationHandler for App {
 
                 let app_window = self.app_window.as_mut().unwrap();
 
-                render::render_frame(app_window);
+                render_frame::render_frame(app_window);
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 log::debug!("WindowEvent::KeyboardInput");
