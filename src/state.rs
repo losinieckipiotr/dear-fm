@@ -37,18 +37,32 @@ impl Display for Side {
     }
 }
 
-#[derive(Debug)]
-struct AppFiles {
-    left_path: PathBuf,
-    right_path: PathBuf,
-    left_files: Vec<FileRecord>,
-    right_files: Vec<FileRecord>,
-}
-
 #[derive(Debug, Clone, Copy)]
 struct SortingOptions {
     sort_by: SortBy,
     direction: SortDirection,
+}
+
+#[derive(Debug)]
+struct SideData {
+    selected_idx: Option<usize>,
+    sorting_options: SortingOptions,
+    path: PathBuf,
+    files: Vec<FileRecord>,
+}
+
+impl SideData {
+    fn new() -> Self {
+        SideData {
+            selected_idx: None,
+            sorting_options: SortingOptions {
+                sort_by: SortBy::Name,
+                direction: SortDirection::Ascending,
+            },
+            path: PathBuf::new(),
+            files: Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -66,13 +80,8 @@ pub struct AppState {
 
     focused_window_left: bool,
 
-    pub left_item_selected_idx: Option<usize>,
-    pub right_item_selected_idx: Option<usize>,
-
-    left_sorting_options: SortingOptions,
-    right_sorting_options: SortingOptions,
-
-    app_files: AppFiles,
+    left: SideData,
+    right: SideData,
     // TODO: save index position in given folder
     // and select this index if we go back to that folder again
 }
@@ -95,25 +104,8 @@ impl AppState {
 
             focused_window_left: true,
 
-            left_item_selected_idx: None,
-            right_item_selected_idx: None,
-
-            left_sorting_options: SortingOptions {
-                sort_by: SortBy::Name,
-                direction: SortDirection::Ascending,
-            },
-
-            right_sorting_options: SortingOptions {
-                sort_by: SortBy::Name,
-                direction: SortDirection::Ascending,
-            },
-
-            app_files: AppFiles {
-                left_path: PathBuf::new(),
-                right_path: PathBuf::new(),
-                left_files: Vec::new(),
-                right_files: Vec::new(),
-            },
+            left: SideData::new(),
+            right: SideData::new(),
         }
     }
 
@@ -126,15 +118,15 @@ impl AppState {
 
     pub fn get_path(&self, side: Side) -> &Path {
         match side {
-            Side::Left => &self.app_files.left_path,
-            Side::Right => &self.app_files.right_path,
+            Side::Left => &self.left.path,
+            Side::Right => &self.right.path,
         }
     }
 
     pub fn get_window_files(&self, side: Side) -> &Vec<FileRecord> {
         match side {
-            Side::Left => &self.app_files.left_files,
-            Side::Right => &self.app_files.right_files,
+            Side::Left => &self.left.files,
+            Side::Right => &self.right.files,
         }
     }
 
@@ -148,12 +140,12 @@ impl AppState {
 
         let files = match side {
             Side::Left => {
-                self.left_sorting_options = sorting_options;
-                &mut self.app_files.left_files
+                self.left.sorting_options = sorting_options;
+                &mut self.left.files
             }
             Side::Right => {
-                self.right_sorting_options = sorting_options;
-                &mut self.app_files.right_files
+                self.right.sorting_options = sorting_options;
+                &mut self.right.files
             }
         };
 
@@ -162,8 +154,8 @@ impl AppState {
 
     pub fn get_selected_idx(&self, side: Side) -> Option<usize> {
         match side {
-            Side::Left => self.left_item_selected_idx,
-            Side::Right => self.right_item_selected_idx,
+            Side::Left => self.left.selected_idx,
+            Side::Right => self.right.selected_idx,
         }
     }
 
@@ -172,10 +164,10 @@ impl AppState {
 
         match side {
             Side::Left => {
-                self.left_item_selected_idx = some_idx;
+                self.left.selected_idx = some_idx;
             }
             Side::Right => {
-                self.right_item_selected_idx = some_idx;
+                self.right.selected_idx = some_idx;
             }
         }
     }
@@ -183,12 +175,12 @@ impl AppState {
     pub fn focus_window(&mut self, side: Side) {
         match side {
             Side::Left => {
-                self.left_item_selected_idx = Some(0);
-                self.right_item_selected_idx = None;
+                self.left.selected_idx = Some(0);
+                self.right.selected_idx = None;
             }
             Side::Right => {
-                self.left_item_selected_idx = None;
-                self.right_item_selected_idx = Some(0);
+                self.left.selected_idx = None;
+                self.right.selected_idx = Some(0);
             }
         }
 
@@ -222,39 +214,32 @@ impl AppState {
             files.insert(0, FileRecord::new_go_back_record());
         }
 
-        match side {
+        let data = match side {
             Side::Left => {
                 log::debug!("new_path: {}", canon_path.display());
 
-                let sort_options = self.left_sorting_options;
-
-                files::sort_records(
-                    &mut files,
-                    sort_options.sort_by,
-                    sort_options.direction,
-                );
-
-                self.app_files.left_path = canon_path;
-                self.app_files.left_files = files;
-                // TODO: we need cache to remeber previous select positon
-                self.set_selected_idx(side, 0);
+                &mut self.left
             }
             Side::Right => {
                 log::debug!("new_path: {}", canon_path.display());
 
-                let sort_options = self.right_sorting_options;
-
-                files::sort_records(
-                    &mut files,
-                    sort_options.sort_by,
-                    sort_options.direction,
-                );
-
-                self.app_files.right_path = canon_path;
-                self.app_files.right_files = files;
-                self.set_selected_idx(side, 0);
+                &mut self.right
             }
-        }
+        };
+
+        let sort_options = data.sorting_options;
+
+        files::sort_records(
+            &mut files,
+            sort_options.sort_by,
+            sort_options.direction,
+        );
+
+        data.path = canon_path;
+        data.files = files;
+
+        // TODO: we need cache to remeber previous select positon
+        self.set_selected_idx(side, 0);
     }
 
     pub fn select_next_idx(&mut self, side: Side) {

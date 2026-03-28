@@ -191,6 +191,7 @@ fn render_files_window(
                         state.select_next_idx(side);
                     } else if ui.is_key_pressed(imgui::Key::UpArrow) {
                         state.select_prev_idx(side);
+                    // TODO: go back on backspace
                     } else if ui.is_key_pressed(imgui::Key::Enter) {
                         log::debug!("{} table enter pressed", side);
 
