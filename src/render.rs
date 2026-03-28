@@ -1,6 +1,6 @@
 use crate::{
     AppState, AppWindow, Side,
-    files::{self, SortBy, SortDirection},
+    files::{self, FileRecord, SortBy, SortDirection},
 };
 use chrono::{DateTime, Local};
 use humansize::{DECIMAL, format_size};
@@ -9,14 +9,9 @@ use std::{
     path::PathBuf,
     time::{Duration, Instant},
 };
-use winit::dpi::PhysicalSize;
-
-struct RenderTableResult {
-    table_clicked: bool,
-    to_open_idx: Option<usize>,
-}
 
 pub fn render_frame(app_window: &mut AppWindow) {
+    // initialization //////////////////////////////////////////////////////////
     let now = Instant::now();
 
     let imgui = app_window.imgui.as_mut().unwrap();
@@ -54,6 +49,7 @@ pub fn render_frame(app_window: &mut AppWindow) {
     ui.dockspace_over_main_viewport();
     let dt = now - state.last_frame_measure_time;
 
+    // prepare fps data ////////////////////////////////////////////////////////
     if dt > Duration::from_secs(1) {
         let frame_rate = frame_count - state.last_measure_frame_count;
 
@@ -64,24 +60,20 @@ pub fn render_frame(app_window: &mut AppWindow) {
 
     let mut demo_open = state.demo_open;
 
-    // TODO: render two windows instead main and child windows
-
+    // render //////////////////////////////////////////////////////////////////
     if demo_open {
         ui.show_demo_window(&mut demo_open);
     } else {
-        if ui.is_key_pressed(imgui::Key::Tab) {
-            state.toggle_window_focus();
-        }
+        handgle_global_keys(ui, state);
 
-        render_side(Side::Left, ui, state, inner_size);
-        render_side(Side::Right, ui, state, inner_size);
+        let width = inner_size.width as f32 / 2.0;
+        let height = inner_size.height as f32;
+
+        render_files_window(ui, state, width, height, Side::Left);
+        render_files_window(ui, state, width, height, Side::Right);
     }
 
-    let mut encoder: wgpu::CommandEncoder =
-        app_window.device.create_command_encoder(
-            &wgpu::CommandEncoderDescriptor { label: None },
-        );
-
+    // render end, start backend rendering /////////////////////////////////////
     if state.last_cursor != ui.mouse_cursor() {
         state.last_cursor = ui.mouse_cursor();
         imgui.platform.prepare_render(&ui, &app_window.window);
@@ -90,6 +82,12 @@ pub fn render_frame(app_window: &mut AppWindow) {
     let view = frame
         .texture
         .create_view(&wgpu::TextureViewDescriptor::default());
+
+    let mut encoder: wgpu::CommandEncoder =
+        app_window.device.create_command_encoder(
+            &wgpu::CommandEncoderDescriptor { label: None },
+        );
+
     let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
         label: None,
         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -124,26 +122,9 @@ pub fn render_frame(app_window: &mut AppWindow) {
     frame.present();
 }
 
-fn render_side(
-    side: Side,
-    ui: &Ui,
-    mut state: &mut AppState,
-    inner_size: PhysicalSize<u32>,
-) {
-    let path_to_open_option = render_files_window(
-        ui,
-        &mut state,
-        inner_size.width as f32 / 2.0,
-        inner_size.height as f32,
-        side,
-    );
-
-    if let Some(path_to_open) = path_to_open_option {
-        log::debug!("{} window path_to_open: {}", side, path_to_open.display());
-
-        if files::is_dir(&path_to_open) {
-            state.go_to_directory(side, path_to_open);
-        }
+fn handgle_global_keys(ui: &Ui, state: &mut AppState) {
+    if ui.is_key_pressed(imgui::Key::Tab) {
+        state.toggle_window_focus();
     }
 }
 
@@ -153,17 +134,14 @@ fn render_files_window(
     width: f32,
     height: f32,
     side: Side,
-) -> Option<PathBuf> {
-    let window_name: String = format!("{} window", side);
+) {
     let is_window_focused = state.is_window_focused(side);
-
-    let mut path_to_open_option: Option<PathBuf> = None;
 
     /*
     - [ ] automatic windows resize, can be calculated based in ini file
     - [ ] unable to hide title bar
     */
-    ui.window(window_name)
+    ui.window(format!("{} window", side))
         .position([0.0, 0.0], Condition::FirstUseEver)
         .size([width, height], Condition::FirstUseEver)
         .collapsible(false)
@@ -172,94 +150,109 @@ fn render_files_window(
         .menu_bar(false)
         .title_bar(false)
         .build(|| {
-            {
-                if !ui.is_window_focused() {
-                    if ui.is_window_hovered() {
-                        if ui.is_mouse_clicked(MouseButton::Left) {
-                            log::debug!("no focus but click with hover");
-                            state.focus_window(side);
-                        }
-                    }
-                }
-
-                let has_window_focus = ui.is_window_focused_with_flags(
-                    imgui::WindowFocusedFlags::CHILD_WINDOWS,
-                );
-
-                if has_window_focus {
-                    if ui.is_key_pressed(imgui::Key::DownArrow) {
-                        state.select_next_idx(side);
-                    } else if ui.is_key_pressed(imgui::Key::UpArrow) {
-                        state.select_prev_idx(side);
-                    // TODO: go back on backspace
-                    } else if ui.is_key_pressed(imgui::Key::Enter) {
-                        log::debug!("{} table enter pressed", side);
-
-                        if let Some(idx) = state.get_selected_idx(side) {
-                            path_to_open_option =
-                                Some(state.get_path_to_open_at(side, idx));
-                        }
-                    }
-                }
-
-                let path = state.get_path(side);
-                let buf = PathBuf::from(path);
-
-                let mut clicked_index = -1;
-                buf.iter().enumerate().for_each(|(i, p)| {
-                    if i > 0 {
-                        ui.same_line();
-                    }
-
-                    if ui.button(format!("{}", p.display())) {
-                        clicked_index = i as i32;
-                    }
-                });
-
-                if clicked_index >= 0 {
-                    let mut path_to_open = PathBuf::new();
-
-                    buf.iter().take(clicked_index as usize + 1).for_each(|i| {
-                        path_to_open.push(i);
-                    });
-
-                    log::debug!(
-                        "{} window, go back to {}",
-                        side,
-                        path_to_open.display()
-                    );
-
-                    state.go_to_directory(side, path_to_open);
-                }
-            }
-
-            let frame_rate = state.frame_rate;
-            let frame_count = state.frame_count;
-
-            ui.text(format!("Frame rate: {frame_rate} FPS",));
-            ui.text(format!("Frame count: {frame_count}"));
-
-            let render_table_result = render_table(ui, &mut state, side);
-
-            if render_table_result.table_clicked {
-                log::debug!("{} table clicked", side);
-                state.focus_window(side);
-            }
-
-            if let Some(idx) = render_table_result.to_open_idx {
-                path_to_open_option =
-                    Some(state.get_path_to_open_at(side, idx));
-            }
+            focus_file_window_on_click(ui, state, side);
+            handle_keybord_in_files_window(ui, state, side);
+            render_path_buttons(ui, state, side);
+            render_frames_info(ui, state);
+            render_table(ui, &mut state, side);
         });
-
-    path_to_open_option
 }
 
-fn render_table(
-    ui: &Ui,
-    state: &mut AppState,
-    side: Side,
-) -> RenderTableResult {
+fn focus_file_window_on_click(ui: &Ui, state: &mut AppState, side: Side) {
+    if !ui.is_window_focused() {
+        if ui.is_window_hovered() {
+            if ui.is_mouse_clicked(MouseButton::Left) {
+                log::debug!("no focus but click with hover");
+                state.focus_window(side);
+            }
+        }
+    }
+}
+
+fn handle_keybord_in_files_window(ui: &Ui, state: &mut AppState, side: Side) {
+    if ui.is_window_focused_with_flags(imgui::WindowFocusedFlags::CHILD_WINDOWS)
+    {
+        if ui.is_key_pressed(imgui::Key::DownArrow) {
+            state.select_next_idx(side);
+        } else if ui.is_key_pressed(imgui::Key::UpArrow) {
+            state.select_prev_idx(side);
+        } else if ui.is_key_pressed(imgui::Key::Enter) {
+            log::debug!("{} window enter pressed", side);
+
+            if let Some(idx) = state.get_selected_idx(side) {
+                open_if_directory(
+                    state,
+                    state.get_path_to_open_at(side, idx),
+                    side,
+                );
+            }
+        } else if ui.is_key_pressed(imgui::Key::Backspace) {
+            log::info!("{} window backspace pressed", side);
+
+            let mut path_to_open = PathBuf::from(state.get_path(side));
+
+            path_to_open.push("../");
+
+            log::info!(
+                "{} window, go back to {}",
+                side,
+                path_to_open.display()
+            );
+
+            state.go_to_directory(side, path_to_open);
+        }
+    }
+}
+
+fn open_if_directory(state: &mut AppState, path_to_open: PathBuf, side: Side) {
+    log::debug!(
+        "open_if_directory path_to_open: {}, side: {}",
+        path_to_open.display(),
+        side
+    );
+
+    if files::is_dir(&path_to_open) {
+        state.go_to_directory(side, path_to_open);
+    }
+}
+
+fn render_path_buttons(ui: &Ui, state: &mut AppState, side: Side) {
+    let path = state.get_path(side);
+    let buf = PathBuf::from(path);
+
+    let mut clicked_index = -1;
+    buf.iter().enumerate().for_each(|(i, p)| {
+        if i > 0 {
+            ui.same_line();
+        }
+
+        if ui.button(format!("{}", p.display())) {
+            clicked_index = i as i32;
+        }
+    });
+
+    if clicked_index >= 0 {
+        let mut path_to_open = PathBuf::new();
+
+        buf.iter().take(clicked_index as usize + 1).for_each(|i| {
+            path_to_open.push(i);
+        });
+
+        log::debug!("{} window, go back to {}", side, path_to_open.display());
+
+        state.go_to_directory(side, path_to_open);
+    }
+}
+
+fn render_frames_info(ui: &Ui, state: &mut AppState) {
+    let frame_rate = state.frame_rate;
+    let frame_count = state.frame_count;
+
+    ui.text(format!("Frame rate: {frame_rate} FPS",));
+    ui.text(format!("Frame count: {frame_count}"));
+}
+
+fn render_table(ui: &Ui, state: &mut AppState, side: Side) {
     log::debug!("render_table");
 
     let table_token = ui
@@ -277,6 +270,40 @@ fn render_table(
         )
         .unwrap();
 
+    handle_table_sorting(ui, state, side);
+
+    let files = state.get_window_files(side);
+    let mut selected_idx_option = state.get_selected_idx(side);
+    let mut double_clicked_idx_option: Option<usize> = None;
+    let mut any_row_clicked = false;
+
+    for (idx, file) in files.iter().enumerate() {
+        ui.table_next_row();
+
+        render_name_column(
+            ui,
+            idx,
+            file,
+            &mut selected_idx_option,
+            &mut double_clicked_idx_option,
+            &mut any_row_clicked,
+        );
+        render_size_column(ui, file);
+        render_modified_column(ui, file);
+    }
+
+    table_token.end();
+
+    handle_table_interactions(
+        state,
+        side,
+        selected_idx_option,
+        any_row_clicked,
+        double_clicked_idx_option,
+    )
+}
+
+fn handle_table_sorting(ui: &Ui, state: &mut AppState, side: Side) {
     if let Some(sort_data) = ui.table_sort_specs_mut() {
         sort_data.conditional_sort(|specs| {
             let spec = specs.iter().next().unwrap();
@@ -306,77 +333,98 @@ fn render_table(
             }
         });
     }
+}
 
-    let files = state.get_window_files(side);
-    let mut current_item = state.get_selected_idx(side);
-    let mut double_clicked_idx: Option<usize> = None;
-    let mut any_row_clicked = false;
+fn render_name_column(
+    ui: &Ui,
+    idx: usize,
+    file: &FileRecord,
+    selected_idx_option: &mut Option<usize>,
+    double_clicked_idx_option: &mut Option<usize>,
+    any_row_clicked: &mut bool,
+) {
+    ui.table_next_column();
 
-    for (idx, file) in files.iter().enumerate() {
-        ui.table_next_row();
-        ui.table_next_column();
+    let is_selected = match selected_idx_option {
+        Some(selected_idx) => idx == *selected_idx,
+        None => false,
+    };
 
-        let is_selected = match current_item {
-            Some(current_item_idx) => idx == current_item_idx,
-            None => false,
-        };
+    let clicked = ui
+        .selectable_config(&file.file_name)
+        .selected(is_selected)
+        .flags(
+            SelectableFlags::SPAN_ALL_COLUMNS
+                | SelectableFlags::ALLOW_DOUBLE_CLICK,
+        )
+        .build();
 
-        log::debug!("idx: {}, is_selected: {}", idx, is_selected);
+    if clicked {
+        log::debug!("clicked idx: {idx}");
 
-        let clicked = ui
-            .selectable_config(&file.file_name)
-            .selected(is_selected)
-            .flags(
-                SelectableFlags::SPAN_ALL_COLUMNS
-                    | SelectableFlags::ALLOW_DOUBLE_CLICK,
-            )
-            .build();
-
-        if clicked {
-            log::debug!("clicked idx: {idx}");
-
-            if ui.is_mouse_double_clicked(MouseButton::Left) {
-                double_clicked_idx = Some(idx);
-            }
-
-            current_item = Some(idx);
-            any_row_clicked = true;
+        if ui.is_mouse_double_clicked(MouseButton::Left) {
+            *double_clicked_idx_option = Some(idx);
         }
 
-        ui.table_next_column();
+        *selected_idx_option = Some(idx);
+        *any_row_clicked = true;
 
-        if file.is_go_back_record {
-            ui.text("");
-            ui.table_next_column();
-            ui.text("");
+        ui.table_next_column();
+    }
+}
+
+fn render_size_column(ui: &Ui, file: &FileRecord) {
+    ui.table_next_column();
+
+    if file.is_go_back_record {
+        ui.text("");
+    } else {
+        let size = file.size;
+        let is_file = file.is_file;
+
+        let formatted_size: String =
+            format_size(size, DECIMAL.decimal_places(1));
+        if is_file {
+            ui.text(formatted_size);
         } else {
-            let size = file.size;
-            let is_file = file.is_file;
-            let modified = file.modified;
-
-            let formatted_size: String =
-                format_size(size, DECIMAL.decimal_places(1));
-            if is_file {
-                ui.text(formatted_size);
-            } else {
-                ui.text("--");
-            }
-            ui.table_next_column();
-
-            let datetime: DateTime<Local> = modified.into();
-
-            ui.text(format!("{}", datetime.format("%d %b %Y at %H:%M")));
+            ui.text("--");
         }
     }
+}
 
-    table_token.end();
+fn render_modified_column(ui: &Ui, file: &FileRecord) {
+    ui.table_next_column();
 
-    if let Some(current_item_idx) = current_item {
-        state.set_selected_idx(side, current_item_idx);
+    if file.is_go_back_record {
+        ui.text("");
+    } else {
+        let modified = file.modified;
+        let datetime: DateTime<Local> = modified.into();
+
+        ui.text(format!("{}", datetime.format("%d %b %Y at %H:%M")));
+    }
+}
+
+fn handle_table_interactions(
+    state: &mut AppState,
+    side: Side,
+    selected_idx_option: Option<usize>,
+    any_row_clicked: bool,
+    double_clicked_idx_option: Option<usize>,
+) {
+    if let Some(selected_idx) = selected_idx_option {
+        state.set_selected_idx(side, selected_idx);
     }
 
-    RenderTableResult {
-        table_clicked: any_row_clicked,
-        to_open_idx: double_clicked_idx,
+    if any_row_clicked {
+        log::debug!("{} table clicked", side);
+
+        state.focus_window(side);
+    }
+
+    if let Some(idx) = double_clicked_idx_option {
+        let path_to_open = state.get_path_to_open_at(side, idx);
+
+        open_if_directory(state, path_to_open, side);
     }
 }
