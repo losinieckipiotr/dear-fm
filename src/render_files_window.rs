@@ -29,15 +29,15 @@ pub fn render_files_window(
         .menu_bar(false)
         .title_bar(false)
         .build(|| {
-            focus_file_window_on_click(ui, state, side);
-            handle_keybord_in_files_window(ui, state, side);
+            focus_on_click(ui, state, side);
+            handle_keybord(ui, state, side);
             render_path_buttons(ui, state, side);
             render_frames_info(ui, state);
             render_table(ui, &mut state, side);
         });
 }
 
-pub fn focus_file_window_on_click(ui: &Ui, state: &mut AppState, side: Side) {
+fn focus_on_click(ui: &Ui, state: &mut AppState, side: Side) {
     if !ui.is_window_focused() {
         if ui.is_window_hovered() {
             if ui.is_mouse_clicked(MouseButton::Left) {
@@ -48,7 +48,7 @@ pub fn focus_file_window_on_click(ui: &Ui, state: &mut AppState, side: Side) {
     }
 }
 
-fn handle_keybord_in_files_window(ui: &Ui, state: &mut AppState, side: Side) {
+fn handle_keybord(ui: &Ui, state: &mut AppState, side: Side) {
     if ui.is_window_focused_with_flags(imgui::WindowFocusedFlags::CHILD_WINDOWS)
     {
         if ui.is_key_pressed(imgui::Key::DownArrow) {
