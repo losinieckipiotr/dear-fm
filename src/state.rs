@@ -45,6 +45,12 @@ struct AppFiles {
     right_files: Vec<FileRecord>,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct SortingOptions {
+    sort_by: SortBy,
+    direction: SortDirection,
+}
+
 #[derive(Debug)]
 pub struct AppState {
     pub demo_open: bool,
@@ -62,6 +68,9 @@ pub struct AppState {
 
     pub left_item_selected_idx: Option<usize>,
     pub right_item_selected_idx: Option<usize>,
+
+    left_sorting_options: SortingOptions,
+    right_sorting_options: SortingOptions,
 
     app_files: AppFiles,
     // TODO: save index position in given folder
@@ -88,6 +97,16 @@ impl AppState {
 
             left_item_selected_idx: None,
             right_item_selected_idx: None,
+
+            left_sorting_options: SortingOptions {
+                sort_by: SortBy::Name,
+                direction: SortDirection::Ascending,
+            },
+
+            right_sorting_options: SortingOptions {
+                sort_by: SortBy::Name,
+                direction: SortDirection::Ascending,
+            },
 
             app_files: AppFiles {
                 left_path: PathBuf::new(),
@@ -125,12 +144,20 @@ impl AppState {
         sort_by: SortBy,
         direction: SortDirection,
     ) {
+        let sorting_options = SortingOptions { sort_by, direction };
+
         let files = match side {
-            Side::Left => &mut self.app_files.left_files,
-            Side::Right => &mut self.app_files.right_files,
+            Side::Left => {
+                self.left_sorting_options = sorting_options;
+                &mut self.app_files.left_files
+            }
+            Side::Right => {
+                self.right_sorting_options = sorting_options;
+                &mut self.app_files.right_files
+            }
         };
 
-        FileRecord::sort_records(files, sort_by, direction);
+        files::sort_records(files, sort_by, direction);
     }
 
     pub fn get_selected_idx(&self, side: Side) -> Option<usize> {
@@ -199,6 +226,14 @@ impl AppState {
             Side::Left => {
                 log::debug!("new_path: {}", canon_path.display());
 
+                let sort_options = self.left_sorting_options;
+
+                files::sort_records(
+                    &mut files,
+                    sort_options.sort_by,
+                    sort_options.direction,
+                );
+
                 self.app_files.left_path = canon_path;
                 self.app_files.left_files = files;
                 // TODO: we need cache to remeber previous select positon
@@ -206,6 +241,14 @@ impl AppState {
             }
             Side::Right => {
                 log::debug!("new_path: {}", canon_path.display());
+
+                let sort_options = self.right_sorting_options;
+
+                files::sort_records(
+                    &mut files,
+                    sort_options.sort_by,
+                    sort_options.direction,
+                );
 
                 self.app_files.right_path = canon_path;
                 self.app_files.right_files = files;

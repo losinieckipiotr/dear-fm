@@ -1,6 +1,6 @@
 use std::{
     cmp::Reverse,
-    fs::{self, canonicalize},
+    fs::{self},
     os::unix::fs::MetadataExt,
     path::PathBuf,
     time::SystemTime,
@@ -8,12 +8,14 @@ use std::{
 
 const GO_BACK_FILE_NAME: &'static str = "..";
 
+#[derive(Debug, Clone, Copy)]
 pub enum SortBy {
     Name,
     Size,
     Modified,
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum SortDirection {
     Ascending,
     Descending,
@@ -39,36 +41,35 @@ impl FileRecord {
         }
     }
 
-    pub fn sort_records(
-        files: &mut Vec<Self>,
+    fn sort_files_or_directories(
+        records: &mut Vec<Self>,
         sort_by: SortBy,
         direction: SortDirection,
     ) {
-        let go_back_index =
-            files.iter().position(|f| f.is_go_back_record).unwrap();
-
-        files.remove(go_back_index);
-
         match direction {
             SortDirection::Ascending => match sort_by {
-                SortBy::Name => {
-                    files.sort_by(|a, b| a.file_name.cmp(&b.file_name))
-                }
-                SortBy::Size => files.sort_by_key(|file| file.size),
-                SortBy::Modified => files.sort_by_key(|file| file.modified),
+                SortBy::Name => records.sort_by(|a, b| {
+                    let a_lower = a.file_name.to_lowercase();
+                    let b_lower = b.file_name.to_lowercase();
+
+                    a_lower.cmp(&b_lower)
+                }),
+                SortBy::Size => records.sort_by_key(|file| file.size),
+                SortBy::Modified => records.sort_by_key(|file| file.modified),
             },
             SortDirection::Descending => match sort_by {
-                SortBy::Name => {
-                    files.sort_by_key(|file| Reverse(file.file_name.clone()))
-                }
-                SortBy::Size => files.sort_by_key(|file| Reverse(file.size)),
+                SortBy::Name => records.sort_by(|a, b| {
+                    let a_lower = a.file_name.to_lowercase();
+                    let b_lower = b.file_name.to_lowercase();
+
+                    b_lower.cmp(&a_lower)
+                }),
+                SortBy::Size => records.sort_by_key(|file| Reverse(file.size)),
                 SortBy::Modified => {
-                    files.sort_by_key(|file| Reverse(file.modified))
+                    records.sort_by_key(|file| Reverse(file.modified))
                 }
             },
         }
-
-        files.insert(0, FileRecord::new_go_back_record());
     }
 }
 
@@ -138,4 +139,53 @@ pub fn is_dir(path: &PathBuf) -> bool {
             false
         }
     }
+}
+
+pub fn sort_records(
+    records: &mut Vec<FileRecord>,
+    sort_by: SortBy,
+    direction: SortDirection,
+) {
+    log::debug!("sort_records");
+    log::debug!("records: {:#?}", records);
+
+    let go_back_index =
+        records.iter().position(|f| f.is_go_back_record).unwrap();
+
+    let go_back_record = records.remove(go_back_index);
+
+    let mut files = vec![];
+    let mut folders = vec![];
+
+    loop {
+        let option = records.pop();
+
+        match option {
+            Some(record) => {
+                if record.is_file {
+                    files.push(record);
+                } else {
+                    folders.push(record);
+                }
+            }
+            None => break,
+        }
+    }
+
+    log::debug!("after partion records: {:#?}", records);
+    log::debug!("files: {:#?}", files);
+    log::debug!("folders: {:#?}", folders);
+
+    FileRecord::sort_files_or_directories(&mut files, sort_by, direction);
+    FileRecord::sort_files_or_directories(&mut folders, sort_by, direction);
+
+    if records.len() != 0 {
+        panic!("records vector should be empty by now");
+    }
+
+    records.push(go_back_record);
+    records.append(&mut folders);
+    records.append(&mut files);
+
+    log::debug!("final records: {:#?}", records);
 }
