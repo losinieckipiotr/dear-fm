@@ -171,7 +171,6 @@ fn render_files_window(
         .movable(false)
         .menu_bar(false)
         .title_bar(false)
-        .no_decoration()
         .build(|| {
             {
                 if !ui.is_window_focused() {
@@ -233,6 +232,12 @@ fn render_files_window(
                 }
             }
 
+            let frame_rate = state.frame_rate;
+            let frame_count = state.frame_count;
+
+            ui.text(format!("Frame rate: {frame_rate} FPS",));
+            ui.text(format!("Frame count: {frame_count}"));
+
             let render_table_result = render_table(ui, &mut state, side);
 
             if render_table_result.table_clicked {
@@ -244,12 +249,6 @@ fn render_files_window(
                 path_to_open_option =
                     Some(state.get_path_to_open_at(side, idx));
             }
-
-            let frame_rate = state.frame_rate;
-            let frame_count = state.frame_count;
-
-            ui.text(format!("Frame rate: {frame_rate} FPS",));
-            ui.text(format!("Frame count: {frame_count}"));
         });
 
     path_to_open_option
@@ -373,7 +372,6 @@ fn render_table(
 
     if let Some(current_item_idx) = current_item {
         state.set_selected_idx(side, current_item_idx);
-        ui.text(format!("current_item_idx: {current_item_idx}"));
     }
 
     RenderTableResult {
