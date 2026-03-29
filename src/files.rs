@@ -9,14 +9,14 @@ use std::{
 
 const GO_BACK_FILE_NAME: &'static str = "..";
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, serde::Deserialize, serde::Serialize)]
 pub enum SortBy {
     Name,
     Size,
     Modified,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, serde::Deserialize, serde::Serialize)]
 pub enum SortDirection {
     Ascending,
     Descending,
@@ -29,6 +29,18 @@ pub struct FileRecord {
     pub size: u64,
     pub modified: SystemTime,
     pub is_go_back_record: bool,
+}
+
+impl Default for FileRecord {
+    fn default() -> Self {
+        Self {
+            file_name: String::new(),
+            is_file: false,
+            size: 0,
+            modified: SystemTime::UNIX_EPOCH,
+            is_go_back_record: false,
+        }
+    }
 }
 
 impl FileRecord {

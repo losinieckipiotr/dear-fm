@@ -2,10 +2,7 @@ use std::{
     fmt::{self, Display},
     fs::canonicalize,
     path::{Path, PathBuf},
-    time::Instant,
 };
-
-use imgui::MouseCursor;
 
 use crate::files::{self, FileRecord, SortBy, SortDirection};
 
@@ -37,23 +34,36 @@ impl Display for Side {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 struct SortingOptions {
     sort_by: SortBy,
     direction: SortDirection,
 }
 
-#[derive(Debug)]
+impl Default for SortingOptions {
+    fn default() -> Self {
+        Self {
+            sort_by: SortBy::Name,
+            direction: SortDirection::Ascending,
+        }
+    }
+}
+
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 struct SideData {
     selected_idx: Option<usize>,
     sorting_options: SortingOptions,
     path: PathBuf,
+
+    #[serde(skip)]
     files: Vec<FileRecord>,
 }
 
-impl SideData {
-    fn new() -> Self {
-        SideData {
+impl Default for SideData {
+    fn default() -> Self {
+        Self {
             selected_idx: None,
             sorting_options: SortingOptions {
                 sort_by: SortBy::Name,
@@ -65,19 +75,17 @@ impl SideData {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct AppState {
-    pub demo_open: bool,
-    pub limit_fps: bool,
-    pub last_frame: Instant,
+    // pub demo_open: bool,
+    // pub limit_fps: bool,
+    // pub last_frame: Instant,
 
-    pub last_cursor: Option<MouseCursor>,
-
-    pub last_frame_measure_time: Instant,
-    pub last_measure_frame_count: i32,
-    pub frame_rate: i32,
-    pub frame_count: i32,
-
+    // pub last_frame_measure_time: Instant,
+    // pub last_measure_frame_count: i32,
+    // pub frame_rate: i32,
+    // pub frame_count: i32,
     focused_window_left: bool,
 
     left: SideData,
@@ -86,29 +94,28 @@ pub struct AppState {
     // and select this index if we go back to that folder again
 }
 
-impl AppState {
-    pub fn new() -> Self {
-        let now = Instant::now();
+impl Default for AppState {
+    fn default() -> Self {
+        // let now = Instant::now();
 
-        AppState {
-            demo_open: false,
-            limit_fps: true,
-            last_frame: now,
+        Self {
+            // demo_open: false,
+            // limit_fps: true,
+            // last_frame: now,
 
-            last_cursor: None,
-
-            last_frame_measure_time: now,
-            last_measure_frame_count: 0,
-            frame_rate: 0,
-            frame_count: 0,
-
+            // last_frame_measure_time: now,
+            // last_measure_frame_count: 0,
+            // frame_rate: 0,
+            // frame_count: 0,
             focused_window_left: true,
 
-            left: SideData::new(),
-            right: SideData::new(),
+            left: SideData::default(),
+            right: SideData::default(),
         }
     }
+}
 
+impl AppState {
     pub fn is_window_focused(&self, side: Side) -> bool {
         match side {
             Side::Left => self.focused_window_left,
