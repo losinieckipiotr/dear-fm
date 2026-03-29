@@ -182,6 +182,6 @@ fn handle_table_interactions(
     if let Some(idx) = double_clicked_idx_option {
         let path_to_open = state.get_path_to_open_at(side, idx);
 
-        state.go_to_if_directory(side, path_to_open);
+        state.go_to_or_open(side, path_to_open);
     }
 }

@@ -3,6 +3,7 @@ use std::{
     fs::{self},
     os::unix::fs::MetadataExt,
     path::PathBuf,
+    process::Command,
     time::SystemTime,
 };
 
@@ -188,4 +189,16 @@ pub fn sort_records(
     records.append(&mut files);
 
     log::debug!("final records: {:#?}", records);
+}
+
+#[cfg(target_os = "macos")]
+pub fn open_file(path_to_open: PathBuf) {
+    log::debug!("open_file path_to_open: {}", path_to_open.display());
+
+    let _ = Command::new("open").arg(path_to_open).spawn();
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn open_file() {
+    panic!("not implemented");
 }

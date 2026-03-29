@@ -242,7 +242,7 @@ impl AppState {
         self.set_selected_idx(side, 0);
     }
 
-    pub fn go_to_if_directory(&mut self, side: Side, path_to_open: PathBuf) {
+    pub fn go_to_or_open(&mut self, side: Side, path_to_open: PathBuf) {
         log::debug!(
             "go_to_if_directory side: {}, path_to_open: {}, ",
             side,
@@ -251,6 +251,8 @@ impl AppState {
 
         if files::is_dir(&path_to_open) {
             self.go_to_directory(side, path_to_open);
+        } else {
+            files::open_file(path_to_open);
         }
     }
 
