@@ -202,8 +202,3 @@ pub fn open_file(path_to_open: PathBuf) {
 
     let _ = Command::new("open").arg(path_to_open).spawn();
 }
-
-#[cfg(not(target_os = "macos"))]
-pub fn open_file() {
-    panic!("not implemented");
-}

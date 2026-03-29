@@ -61,6 +61,8 @@ fn handle_keybord(ui: &Ui, state: &mut AppState, side: Side) {
             if let Some(idx) = state.get_selected_idx(side) {
                 state.go_to_or_open(side, state.get_path_to_open_at(side, idx));
             }
+        } else if ui.is_key_pressed(imgui::Key::Space) {
+            // TODO: should I make my child window and my preview?
         } else if ui.is_key_pressed(imgui::Key::Backspace) {
             log::info!("{} window backspace pressed", side);
 
