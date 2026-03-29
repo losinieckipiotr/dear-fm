@@ -150,10 +150,12 @@ pub fn sort_records(
     log::debug!("sort_records");
     log::debug!("records: {:#?}", records);
 
-    let go_back_index =
-        records.iter().position(|f| f.is_go_back_record).unwrap();
+    let go_back_index = records.iter().position(|f| f.is_go_back_record);
 
-    let go_back_record = records.remove(go_back_index);
+    let go_back_record = match go_back_index {
+        Some(idx) => Some(records.remove(idx)),
+        None => None,
+    };
 
     let mut files = vec![];
     let mut folders = vec![];
@@ -184,7 +186,10 @@ pub fn sort_records(
         panic!("records vector should be empty by now");
     }
 
-    records.push(go_back_record);
+    if let Some(record) = go_back_record {
+        records.push(record);
+    }
+
     records.append(&mut folders);
     records.append(&mut files);
 
