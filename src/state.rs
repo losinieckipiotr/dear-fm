@@ -92,6 +92,10 @@ pub struct AppState {
     right: SideData,
     // TODO: save index position in given folder
     // and select this index if we go back to that folder again
+    pub scroll_to_row: Option<usize>,
+    pub selection: std::collections::HashSet<usize>,
+    pub checked: bool,
+    pub reversed: bool,
 }
 
 impl Default for AppState {
@@ -111,6 +115,11 @@ impl Default for AppState {
 
             left: SideData::default(),
             right: SideData::default(),
+
+            scroll_to_row: None,
+            selection: Default::default(),
+            checked: false,
+            reversed: false,
         }
     }
 }

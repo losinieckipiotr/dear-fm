@@ -6,6 +6,7 @@ rust-version = "1.94"
 
 [dependencies]
 egui = "0.34.1"
+egui_extras = "0.34.1"
 eframe = { version = "0.34.1", features = ["persistence"] }
 log = "0.4.29"
 
