@@ -1,19 +1,19 @@
 use std::path::PathBuf;
 
 use env_logger::Env;
-use iced::Length::{Fill, Shrink};
-use iced::widget::{
-    column, container, row, rule, scrollable, space, table, text,
-};
-use iced::{
-    Element, Size, Subscription, Task, Theme, border, keyboard, window,
-};
+use iced::widget::{row, rule};
+use iced::{Element, Size, Subscription, Task, Theme, keyboard, window};
 
-use crate::files::FileRecord;
+use crate::message::Message;
+use crate::side_view::side_view;
 use crate::state::{AppState, Side};
+use crate::table_view::table_view;
 
 mod files;
+mod message;
+mod side_view;
 mod state;
+mod table_view;
 
 pub fn main() -> iced::Result {
     // env_logger::init();
@@ -45,14 +45,6 @@ impl Default for Application {
             // left_files: Vec::new(),
         }
     }
-}
-
-#[derive(Debug, Clone, Copy)]
-enum Message {
-    WindowOpened,
-    ToggleFullscreen,
-    ToggleMaximize,
-    Exit,
 }
 
 impl Application {
@@ -146,58 +138,10 @@ impl Application {
 
     fn view(&self) -> Element<'_, Message> {
         row![
-            column![
-                container(text(format!("{} window", Side::Left)))
-                    .padding(10)
-                    .style(|theme: &Theme| {
-                        let palette = theme.extended_palette();
-                        container::Style::default().border(
-                            border::color(palette.background.strong.color)
-                                .width(2),
-                        )
-                    })
-                    .center_x(Fill),
-                scrollable(self.table(Side::Left))
-            ],
-            space().width(10),
+            side_view(&self.state, Side::Left),
             rule::vertical(1),
-            space().width(10),
-            column![
-                container(text(format!("{} window", Side::Right)))
-                    .padding(10)
-                    .style(|theme: &Theme| {
-                        let palette = theme.extended_palette();
-                        container::Style::default().border(
-                            border::color(palette.background.strong.color)
-                                .width(2),
-                        )
-                    })
-                    .center_x(Fill),
-                scrollable(self.table(Side::Right))
-            ]
+            side_view(&self.state, Side::Right),
         ]
         .into()
-    }
-
-    fn table(&self, side: Side) -> Element<'_, Message> {
-        let columns = [
-            table::column("file name", |file: &FileRecord| {
-                text(file.file_name.clone())
-            })
-            .width(Shrink),
-            table::column("size", |file: &FileRecord| {
-                if file.is_go_back_record {
-                    text("")
-                } else if file.is_file {
-                    // TODO: formatting
-                    text(file.size.to_string())
-                } else {
-                    text("--")
-                }
-            })
-            .width(Fill),
-        ];
-
-        table(columns, self.state.get_window_files(side)).into()
     }
 }
