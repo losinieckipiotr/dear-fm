@@ -5,8 +5,6 @@ use std::{
     time::Instant,
 };
 
-use imgui::MouseCursor;
-
 use crate::files::{self, FileRecord, SortBy, SortDirection};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -71,8 +69,6 @@ pub struct AppState {
     pub limit_fps: bool,
     pub last_frame: Instant,
 
-    pub last_cursor: Option<MouseCursor>,
-
     pub last_frame_measure_time: Instant,
     pub last_measure_frame_count: i32,
     pub frame_rate: i32,
@@ -94,8 +90,6 @@ impl AppState {
             demo_open: false,
             limit_fps: true,
             last_frame: now,
-
-            last_cursor: None,
 
             last_frame_measure_time: now,
             last_measure_frame_count: 0,
