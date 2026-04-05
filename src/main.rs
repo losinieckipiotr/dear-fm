@@ -1,13 +1,11 @@
-use std::path::PathBuf;
-
-use env_logger::Env;
-use iced::widget::{row, rule};
-use iced::{Element, Size, Subscription, Task, Theme, keyboard, window};
-
-use crate::message::Message;
+use crate::message::{Message, SaveError};
 use crate::side_view::side_view;
 use crate::state::{AppState, Side};
 use crate::table_view::table_view;
+use env_logger::Env;
+use iced::widget::{row, rule};
+use iced::{Element, Size, Subscription, Task, Theme, keyboard, window};
+use std::path::PathBuf;
 
 mod files;
 mod message;
@@ -21,7 +19,7 @@ pub fn main() -> iced::Result {
         Env::new().default_filter_or(log::Level::Info.as_str()),
     );
 
-    iced::application(
+    let res = iced::application(
         Application::default,
         Application::update,
         Application::view,
@@ -30,19 +28,28 @@ pub fn main() -> iced::Result {
     .theme(Application::theme)
     .subscription(Application::subscription)
     .window_size(Application::window_size())
-    .run()
+    // TODO:
+    // .exit_on_close_request(false)
+    .run();
+
+    log::info!("exit");
+
+    res
 }
 
 struct Application {
     state: AppState,
+    dirty: bool,
+    saving: bool,
     // left_files: Vec<TableEntry>,
 }
 
 impl Default for Application {
     fn default() -> Self {
         Self {
-            state: AppState::new(),
-            // left_files: Vec::new(),
+            state: AppState::default(),
+            dirty: false,
+            saving: false,
         }
     }
 }
@@ -65,6 +72,37 @@ impl Application {
         }
     }
 
+    // TODO:
+    // async fn load() -> Result<SavedState, LoadError> {
+    //     let contents = tokio::fs::read_to_string(Self::path())
+    //         .await
+    //         .map_err(|_| LoadError::File)?;
+
+    //     serde_json::from_str(&contents).map_err(|_| LoadError::Format)
+    // }
+
+    async fn save(state: AppState) -> Result<(), SaveError> {
+        use iced::time::milliseconds;
+
+        let json = serde_json::to_string_pretty(&state)
+            .map_err(|_| SaveError::Format)?;
+
+        let mut path = std::env::current_dir().unwrap_or_default();
+        path.push("state.json");
+
+        log::info!("saving to path: {}", path.display());
+        log::info!("{}", json);
+
+        tokio::fs::write(path, json.as_bytes())
+            .await
+            .map_err(|_| SaveError::Write)?;
+
+        // This is a simple way to save at most twice every second
+        tokio::time::sleep(milliseconds(500)).await;
+
+        Ok(())
+    }
+
     fn subscription(&self) -> Subscription<Message> {
         let window_sub =
             window::events().filter_map(|(_id, event)| match event {
@@ -72,6 +110,8 @@ impl Application {
                     position: _,
                     size: _,
                 } => Some(Message::WindowOpened),
+                // TODO:
+                // window::Event::CloseRequested => Some(Message::WindowClosed),
                 _ => None,
             });
 
@@ -99,7 +139,14 @@ impl Application {
     }
 
     fn update(&mut self, message: Message) -> Task<Message> {
+        let mut saved = false;
+        let mut task = Task::none();
+
         match message {
+            Message::Saved(_result) => {
+                self.saving = false;
+                saved = true;
+            }
             Message::WindowOpened => {
                 log::info!("Window opened");
 
@@ -113,10 +160,14 @@ impl Application {
                 );
                 self.state.focus_window(Side::Left);
             }
+            // TODO:
+            // Message::WindowClosed => {
+            //     log::info!("Window closed")
+            // }
             Message::ToggleFullscreen => {
                 use window::{Mode, latest, mode, set_mode};
 
-                return latest().and_then(move |id| {
+                task = latest().and_then(move |id| {
                     mode(id).then(move |mode| match mode {
                         Mode::Fullscreen => set_mode(id, Mode::Windowed),
                         Mode::Windowed => set_mode(id, Mode::Fullscreen),
@@ -125,15 +176,28 @@ impl Application {
                 });
             }
             Message::ToggleMaximize => {
-                return window::latest()
-                    .and_then(|id| window::toggle_maximize(id));
+                task =
+                    window::latest().and_then(|id| window::toggle_maximize(id));
             }
             Message::Exit => {
-                return iced::exit();
+                task = iced::exit();
             }
         }
 
-        Task::none()
+        if !saved {
+            self.dirty = true;
+        }
+
+        let save = if self.dirty && !self.saving {
+            self.dirty = false;
+            self.saving = true;
+
+            Task::perform(Application::save(self.state.clone()), Message::Saved)
+        } else {
+            Task::none()
+        };
+
+        Task::batch([task, save])
     }
 
     fn view(&self) -> Element<'_, Message> {

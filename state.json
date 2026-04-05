@@ -1,0 +1,19 @@
+{
+  "focused_window_left": true,
+  "left": {
+    "selected_idx": 0,
+    "sorting_options": {
+      "sort_by": "Name",
+      "direction": "Ascending"
+    },
+    "path": "/Users/piotrlosiniecki"
+  },
+  "right": {
+    "selected_idx": null,
+    "sorting_options": {
+      "sort_by": "Name",
+      "direction": "Ascending"
+    },
+    "path": "/Users/piotrlosiniecki/Projects"
+  }
+}
