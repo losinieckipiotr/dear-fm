@@ -1,12 +1,10 @@
 use crate::message::Message;
 use crate::state::AppState;
-use crate::table_view::table_view;
 use env_logger::Env;
 use iced::{Element, Size, Subscription, Task, Theme, keyboard, window};
 
 mod files;
 mod message;
-mod side_view;
 mod state;
 mod table_view;
 mod update;
@@ -83,7 +81,8 @@ impl Application {
         let keyboard_sub = listen().filter_map(|event| {
             let Event::KeyPressed {
                 modified_key,
-                repeat: false,
+                // neat way to skip repeated keys
+                // repeat,
                 ..
             } = event
             else {
@@ -94,6 +93,10 @@ impl Application {
                 Key::Named(Named::Escape) => Some(Message::Exit),
                 Key::Character("f") => Some(Message::ToggleFullscreen),
                 Key::Character("m") => Some(Message::ToggleMaximize),
+                Key::Named(Named::Tab) => Some(Message::ToggleWindowFocus),
+                Key::Named(Named::ArrowDown) => Some(Message::ArrowDown),
+                Key::Named(Named::ArrowUp) => Some(Message::ArrowUp),
+                Key::Named(Named::Enter) => Some(Message::Enter),
                 _ => None,
             }
         });

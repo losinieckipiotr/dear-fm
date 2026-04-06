@@ -4,7 +4,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::files::{self, FileRecord, SortBy, SortDirection};
+// TODO: file operations should be async
+use crate::files::{
+    FileRecord, SortBy, SortDirection, is_dir, open_file, read_directory,
+    sort_records,
+};
 
 #[derive(Debug, Clone)]
 pub enum LoadError {
@@ -90,10 +94,7 @@ impl Default for SideData {
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct AppState {
-    // pub demo_open: bool,
-    // pub limit_fps: bool,
     // pub last_frame: Instant,
-
     // pub last_frame_measure_time: Instant,
     // pub last_measure_frame_count: i32,
     // pub frame_rate: i32,
@@ -102,11 +103,14 @@ pub struct AppState {
 
     left: SideData,
     right: SideData,
-    // TODO: save index position in given folder
-    // and select this index if we go back to that folder again
+
+    #[serde(skip)]
     pub header_hover: [bool; 3],
+
     pub fullscreen: bool,
     pub maximized: bool,
+    // TODO: save index position in given folder
+    // and select this index if we go back to that folder again
 }
 
 impl Default for AppState {
@@ -165,7 +169,7 @@ impl AppState {
             }
         };
 
-        files::sort_records(files, sort_by, direction);
+        sort_records(files, sort_by, direction);
     }
 
     pub fn get_selected_idx(&self, side: Side) -> Option<usize> {
@@ -188,6 +192,13 @@ impl AppState {
         }
     }
 
+    pub fn get_selected_side(&self) -> Side {
+        match self.focused_window_left {
+            true => Side::Left,
+            false => Side::Right,
+        }
+    }
+
     pub fn focus_window(&mut self, side: Side) {
         match side {
             Side::Left => {
@@ -203,14 +214,6 @@ impl AppState {
         self.focused_window_left = side.is_left();
     }
 
-    /// TODO maybe not needed
-    pub fn _has_window_focus(&mut self, side: Side) -> bool {
-        match side {
-            Side::Left => self.focused_window_left,
-            Side::Right => !self.focused_window_left,
-        }
-    }
-
     pub fn toggle_window_focus(&mut self) {
         if self.focused_window_left {
             self.focus_window(Side::Right);
@@ -223,7 +226,7 @@ impl AppState {
         log::debug!("go_to_directory path_to_open: {}", path_to_open.display());
 
         let canon_path = canonicalize(path_to_open).unwrap();
-        let mut files = files::read_directory(&canon_path);
+        let mut files = read_directory(&canon_path);
 
         log::debug!("go_to_directory canon_path: {}", canon_path.display());
         if canon_path != PathBuf::from("/") {
@@ -245,11 +248,7 @@ impl AppState {
 
         let sort_options = data.sorting_options;
 
-        files::sort_records(
-            &mut files,
-            sort_options.sort_by,
-            sort_options.direction,
-        );
+        sort_records(&mut files, sort_options.sort_by, sort_options.direction);
 
         data.path = canon_path;
         data.files = files;
@@ -265,10 +264,10 @@ impl AppState {
             path_to_open.display(),
         );
 
-        if files::is_dir(&path_to_open) {
+        if is_dir(&path_to_open) {
             self.go_to_directory(side, path_to_open);
         } else {
-            files::open_file(path_to_open);
+            open_file(path_to_open);
         }
     }
 
@@ -316,17 +315,41 @@ impl AppState {
         let mut state: AppState =
             serde_json::from_str(&state_str).map_err(|_| LoadError::Format)?;
 
-        // TODO: async?
-        state.go_to_directory(
-            Side::Left,
-            state.get_path(Side::Left).to_path_buf(),
-        );
+        if state.focused_window_left {
+            let side = Side::Left;
+            let idx = state.get_selected_idx(side).unwrap_or(0);
 
-        // TODO: async?
-        state.go_to_directory(
-            Side::Right,
-            state.get_path(Side::Right).to_path_buf(),
-        );
+            // TODO: refactor
+            state.go_to_directory(
+                Side::Left,
+                state.get_path(Side::Left).to_path_buf(),
+            );
+
+            state.go_to_directory(
+                Side::Right,
+                state.get_path(Side::Right).to_path_buf(),
+            );
+
+            state.focus_window(side);
+            state.set_selected_idx(side, idx);
+        } else {
+            let side = Side::Right;
+            let idx = state.get_selected_idx(side).unwrap_or(0);
+
+            // TODO: refactor
+            state.go_to_directory(
+                Side::Left,
+                state.get_path(Side::Left).to_path_buf(),
+            );
+
+            state.go_to_directory(
+                Side::Right,
+                state.get_path(Side::Right).to_path_buf(),
+            );
+
+            state.focus_window(side);
+            state.set_selected_idx(side, idx);
+        }
 
         Ok(state)
     }

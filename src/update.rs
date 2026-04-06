@@ -22,6 +22,7 @@ pub fn update(app: &mut Application, message: Message) -> Task<Message> {
                     if app.state.maximized {
                         window::latest()
                             .and_then(|id| window::maximize(id, true))
+                            .chain(Task::done(Message::WindowMaximized(true)))
                     } else {
                         Task::none()
                     }
@@ -37,11 +38,6 @@ pub fn update(app: &mut Application, message: Message) -> Task<Message> {
         },
         Message::HeaderHover(idx, hover) => {
             app.state.header_hover[idx] = hover;
-
-            (Task::none(), false)
-        }
-        Message::TestClick => {
-            log::info!("test click");
 
             (Task::none(), false)
         }
@@ -98,6 +94,45 @@ pub fn update(app: &mut Application, message: Message) -> Task<Message> {
             app.state.go_to_or_open(side, path_to_open);
 
             (Task::none(), true)
+        }
+        Message::ToggleWindowFocus => {
+            app.state.toggle_window_focus();
+
+            (Task::none(), true)
+        }
+        Message::SelectIdx(side, idx) => {
+            app.state.focus_window(side);
+            app.state.set_selected_idx(side, idx);
+
+            (Task::none(), true)
+        }
+        Message::ArrowDown => {
+            let side = app.state.get_selected_side();
+            app.state.select_next_idx(side);
+
+            (Task::none(), true)
+        }
+        Message::ArrowUp => {
+            let side = app.state.get_selected_side();
+            app.state.select_prev_idx(side);
+
+            (Task::none(), true)
+        }
+        Message::Enter => {
+            let side = app.state.get_selected_side();
+            let idx = app
+                .state
+                .get_selected_idx(side)
+                .expect("selected side must have idx");
+            let path_to_open = app.state.get_path_to_open_at(side, idx);
+            app.state.go_to_or_open(side, path_to_open);
+
+            (Task::none(), true)
+        }
+        Message::PathButtonClick(side, path_to_open) => {
+            app.state.go_to_directory(side, path_to_open);
+
+            (Task::none(), false)
         }
     };
 

@@ -2,25 +2,24 @@ use chrono::{DateTime, Local};
 use humansize::{DECIMAL, format_size};
 use iced::Length::Fill;
 
-use iced::widget::{self, button, container, mouse_area, opaque, text};
+use iced::widget::{
+    Column, container, mouse_area, opaque, row, scrollable, text,
+};
 use iced::{Background, Element, Padding, Theme};
 
 use crate::Message;
 use crate::files::FileRecord;
 use crate::state::{AppState, Side};
 
-fn header_container_style(
-    hover: bool,
-    theme: &Theme,
-) -> widget::container::Style {
-    widget::container::Style {
+fn header_container_style(hover: bool, theme: &Theme) -> container::Style {
+    container::Style {
         background: match hover {
             true => None,
             false => Some(Background::Color(
                 theme.extended_palette().background.strong.color,
             )),
         },
-        ..widget::container::Style::default()
+        ..Default::default()
     }
 }
 
@@ -31,7 +30,7 @@ fn header<'a>(
 ) -> Element<'a, Message> {
     opaque(
         mouse_area(
-            widget::container(widget::text(title))
+            container(text(title))
                 .padding(Padding::from([0, 5]))
                 .align_left(Fill)
                 .style(|theme| {
@@ -40,8 +39,38 @@ fn header<'a>(
                 }),
         )
         .on_enter(Message::HeaderHover(idx, true))
-        .on_exit(Message::HeaderHover(idx, false))
-        .on_press(Message::TestClick),
+        .on_exit(Message::HeaderHover(idx, false)),
+    )
+    .into()
+}
+fn table_text_item(
+    side: Side,
+    idx: usize,
+    selected_idx: Option<usize>,
+    data: String,
+) -> Element<'static, Message> {
+    let is_selected = match selected_idx {
+        Some(selected_idx) => selected_idx == idx,
+        None => false,
+    };
+
+    opaque(
+        mouse_area(
+            container(text(data).wrapping(text::Wrapping::None))
+                .width(Fill)
+                .style(move |theme: &Theme| container::Style {
+                    background: match is_selected {
+                        true => Some(Background::Color(
+                            theme.extended_palette().primary.base.color,
+                        )),
+                        false => None,
+                    },
+                    ..Default::default()
+                })
+                .clip(true),
+        )
+        .on_press(Message::SelectIdx(side, idx))
+        .on_double_click(Message::OpenFileOrDir(side, idx)),
     )
     .into()
 }
@@ -49,98 +78,110 @@ fn header<'a>(
 fn name_view(
     side: Side,
     idx: usize,
+    selected_idx: Option<usize>,
     file: &FileRecord,
 ) -> Element<'_, Message> {
-    button(text(file.file_name.as_str()))
-        .on_press(Message::OpenFileOrDir(side, idx))
-        .into()
+    table_text_item(side, idx, selected_idx, file.file_name.clone()).into()
 }
 
 fn name_column_view(
     state: &AppState,
     side: Side,
-) -> widget::Column<'_, Message> {
-    let col = widget::Column::new().push(header(state, "Name", 0));
+    selected_idx: Option<usize>,
+) -> Column<'_, Message> {
+    let col = Column::new().push(header(state, "Name", 0));
 
     let names: Vec<Element<'_, Message>> = state
         .get_window_files(side)
         .iter()
         .enumerate()
-        .map(|(idx, file)| name_view(side, idx, file))
+        .map(|(idx, file)| name_view(side, idx, selected_idx, file))
         .collect();
 
     col.extend(names)
 }
 
-fn size_view(file: &FileRecord) -> Element<'_, Message> {
-    let view = if file.is_go_back_record {
-        text("")
+fn size_view(
+    side: Side,
+    idx: usize,
+    selected_idx: Option<usize>,
+    file: &FileRecord,
+) -> Element<'_, Message> {
+    let data = if file.is_go_back_record {
+        "".to_string()
     } else {
         let size = file.size;
         let is_file = file.is_file;
 
-        let formatted_size: String =
-            format_size(size, DECIMAL.decimal_places(1));
         if is_file {
-            text(formatted_size)
+            format_size(size, DECIMAL.decimal_places(1))
         } else {
-            text("--")
+            "--".to_string()
         }
     };
 
-    view.into()
+    table_text_item(side, idx, selected_idx, data).into()
 }
 
 fn size_column_view(
     state: &AppState,
     side: Side,
-) -> widget::Column<'_, Message> {
-    let col = widget::Column::new().push(header(state, "Size", 1));
+    selected_idx: Option<usize>,
+) -> Column<'_, Message> {
+    let col = Column::new().push(header(state, "Size", 1));
 
     let names: Vec<Element<'_, Message>> = state
         .get_window_files(side)
         .iter()
         .enumerate()
-        .map(|(_idx, file)| size_view(file))
+        .map(|(idx, file)| size_view(side, idx, selected_idx, file))
         .collect();
 
     col.extend(names)
 }
 
-fn modified_view(file: &FileRecord) -> Element<'_, Message> {
-    let view = if file.is_go_back_record {
-        text("")
+fn modified_view(
+    side: Side,
+    idx: usize,
+    selected_idx: Option<usize>,
+    file: &FileRecord,
+) -> Element<'_, Message> {
+    let data = if file.is_go_back_record {
+        "".to_string()
     } else {
         let modified = file.modified;
         let datetime: DateTime<Local> = modified.into();
 
-        text(datetime.format("%d %b %Y at %H:%M").to_string())
+        datetime.format("%d %b %Y at %H:%M").to_string()
     };
 
-    opaque(mouse_area(view).on_press(Message::TestClick)).into()
+    table_text_item(side, idx, selected_idx, data).into()
 }
 
 fn modified_column_view(
     state: &AppState,
     side: Side,
-) -> widget::Column<'_, Message> {
-    let col = widget::Column::new().push(header(state, "Modified", 2));
+    selected_idx: Option<usize>,
+) -> Column<'_, Message> {
+    let col = Column::new().push(header(state, "Modified", 2));
 
     let names: Vec<Element<'_, Message>> = state
         .get_window_files(side)
         .iter()
         .enumerate()
-        .map(|(_idx, file)| modified_view(file))
+        .map(|(idx, file)| modified_view(side, idx, selected_idx, file))
         .collect();
 
     col.extend(names)
 }
 
 pub fn table_view(state: &AppState, side: Side) -> Element<'_, Message> {
-    let name_col = name_column_view(state, side);
-    let size_col = size_column_view(state, side);
-    let modified_col = modified_column_view(state, side);
+    let selected_idx = state.get_selected_idx(side);
 
-    let table = widget::row![name_col, size_col, modified_col];
-    container(table).padding(Padding::from([0, 10])).into()
+    let name_col = name_column_view(state, side, selected_idx);
+    let size_col = size_column_view(state, side, selected_idx);
+    let modified_col = modified_column_view(state, side, selected_idx);
+
+    let table = row![name_col, size_col, modified_col]; //.width(Fill);
+    scrollable(container(table).padding(Padding::from([0, 10]))).into()
 }

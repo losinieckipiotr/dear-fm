@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use iced::window;
 
 use crate::state::{AppState, LoadError, SaveError, Side};
@@ -10,8 +12,13 @@ pub enum Message {
     ToggleFullscreen,
     ToggleMaximize,
     Exit,
-    TestClick,
     HeaderHover(usize, bool),
     WindowMode(window::Mode),
     WindowMaximized(bool),
+    ToggleWindowFocus,
+    SelectIdx(Side, usize),
+    ArrowDown,
+    ArrowUp,
+    Enter,
+    PathButtonClick(Side, PathBuf),
 }
