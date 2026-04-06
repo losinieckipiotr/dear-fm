@@ -6,7 +6,7 @@
       "sort_by": "Name",
       "direction": "Ascending"
     },
-    "path": "/System/Volumes/Data/Users/piotrlosiniecki"
+    "path": "/Users/piotrlosiniecki"
   },
   "right": {
     "selected_idx": 0,
@@ -14,6 +14,13 @@
       "sort_by": "Name",
       "direction": "Ascending"
     },
-    "path": "/Users/piotrlosiniecki/Projects/http-express"
-  }
+    "path": "/Users/piotrlosiniecki/Projects/dear-fm"
+  },
+  "header_hover": [
+    false,
+    false,
+    false
+  ],
+  "fullscreen": false,
+  "maximized": true
 }

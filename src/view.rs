@@ -2,17 +2,16 @@ use crate::Application;
 use crate::message::Message;
 use crate::side_view::side_view;
 use crate::state::Side;
-use iced::Element;
-use iced::widget::{row, rule, text};
+use iced::{Element, widget};
 
 pub fn view(app: &Application) -> Element<'_, Message> {
     if !app.loaded {
-        return text("loading...").into();
+        return widget::text("loading...").into();
     }
 
-    row![
+    widget::row![
         side_view(&app.state, Side::Left),
-        rule::vertical(1),
+        widget::rule::vertical(1),
         side_view(&app.state, Side::Right),
     ]
     .into()

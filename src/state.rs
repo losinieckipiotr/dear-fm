@@ -4,10 +4,19 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::{
-    files::{self, FileRecord, SortBy, SortDirection},
-    message::LoadError,
-};
+use crate::files::{self, FileRecord, SortBy, SortDirection};
+
+#[derive(Debug, Clone)]
+pub enum LoadError {
+    File,
+    Format,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum SaveError {
+    Write,
+    Format,
+}
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Side {
@@ -95,6 +104,9 @@ pub struct AppState {
     right: SideData,
     // TODO: save index position in given folder
     // and select this index if we go back to that folder again
+    pub header_hover: [bool; 3],
+    pub fullscreen: bool,
+    pub maximized: bool,
 }
 
 impl Default for AppState {
@@ -104,6 +116,10 @@ impl Default for AppState {
 
             left: SideData::default(),
             right: SideData::default(),
+
+            header_hover: [false, false, false],
+            fullscreen: false,
+            maximized: false,
         }
     }
 }
@@ -313,5 +329,27 @@ impl AppState {
         );
 
         Ok(state)
+    }
+
+    pub async fn save(self, save_path: &str) -> Result<(), SaveError> {
+        use iced::time::milliseconds;
+
+        let json = serde_json::to_string_pretty(&self)
+            .map_err(|_| SaveError::Format)?;
+
+        let mut path = std::env::current_dir().unwrap_or_default();
+        path.push(save_path);
+
+        log::debug!("saving to path: {}", path.display());
+        log::debug!("{}", json);
+
+        tokio::fs::write(path, json.as_bytes())
+            .await
+            .map_err(|_| SaveError::Write)?;
+
+        // This is a simple way to save at most twice every second
+        tokio::time::sleep(milliseconds(500)).await;
+
+        Ok(())
     }
 }
