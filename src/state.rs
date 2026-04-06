@@ -2,10 +2,12 @@ use std::{
     fmt::{self, Display},
     fs::canonicalize,
     path::{Path, PathBuf},
-    time::Instant,
 };
 
-use crate::files::{self, FileRecord, SortBy, SortDirection};
+use crate::{
+    files::{self, FileRecord, SortBy, SortDirection},
+    message::LoadError,
+};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Side {
@@ -288,5 +290,28 @@ impl AppState {
         path_to_open.push(element_to_open);
 
         path_to_open
+    }
+
+    pub async fn load(path: &str) -> Result<AppState, LoadError> {
+        let state_str = tokio::fs::read_to_string(path)
+            .await
+            .map_err(|_| LoadError::File)?;
+
+        let mut state: AppState =
+            serde_json::from_str(&state_str).map_err(|_| LoadError::Format)?;
+
+        // TODO: async?
+        state.go_to_directory(
+            Side::Left,
+            state.get_path(Side::Left).to_path_buf(),
+        );
+
+        // TODO: async?
+        state.go_to_directory(
+            Side::Right,
+            state.get_path(Side::Right).to_path_buf(),
+        );
+
+        Ok(state)
     }
 }
