@@ -6,8 +6,8 @@ use std::{
 
 // TODO: file operations should be async
 use crate::files::{
-    FileRecord, SortBy, SortDirection, is_dir, open_file, read_directory,
-    sort_records,
+    FileColumn, FileRecord, SortBy, SortDirection, is_dir, open_file,
+    read_directory, sort_records,
 };
 
 #[derive(Debug, Clone)]
@@ -104,9 +104,6 @@ pub struct AppState {
     left: SideData,
     right: SideData,
 
-    #[serde(skip)]
-    pub header_hover: [bool; 3],
-
     pub fullscreen: bool,
     pub maximized: bool,
     // TODO: save index position in given folder
@@ -121,7 +118,6 @@ impl Default for AppState {
             left: SideData::default(),
             right: SideData::default(),
 
-            header_hover: [false, false, false],
             fullscreen: false,
             maximized: false,
         }
@@ -374,5 +370,32 @@ impl AppState {
         tokio::time::sleep(milliseconds(500)).await;
 
         Ok(())
+    }
+
+    pub fn get_hover(&self, side: Side, idx: usize) -> bool {
+        let files = match side {
+            Side::Left => &self.left.files,
+            Side::Right => &self.right.files,
+        };
+        let hover = files[idx].hover;
+
+        hover.iter().any(|i| *i)
+    }
+
+    pub fn update_hover(
+        &mut self,
+        side: Side,
+        idx: usize,
+        file_col: FileColumn,
+        hover: bool,
+    ) {
+        let files = match side {
+            Side::Left => &mut self.left.files,
+            Side::Right => &mut self.right.files,
+        };
+
+        let file = &mut files[idx];
+        let col_idx: usize = file_col.into();
+        file.hover[col_idx] = hover;
     }
 }

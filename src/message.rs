@@ -2,7 +2,10 @@ use std::path::PathBuf;
 
 use iced::window;
 
-use crate::state::{AppState, LoadError, SaveError, Side};
+use crate::{
+    files::FileColumn,
+    state::{AppState, LoadError, SaveError, Side},
+};
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -12,7 +15,6 @@ pub enum Message {
     ToggleFullscreen,
     ToggleMaximize,
     Exit,
-    HeaderHover(usize, bool),
     WindowMode(window::Mode),
     WindowMaximized(bool),
     ToggleWindowFocus,
@@ -21,4 +23,5 @@ pub enum Message {
     ArrowUp,
     Enter,
     PathButtonClick(Side, PathBuf),
+    FileHover(Side, usize, FileColumn, bool),
 }

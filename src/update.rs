@@ -36,11 +36,6 @@ pub fn update(app: &mut Application, message: Message) -> Task<Message> {
                 (iced::exit(), false)
             }
         },
-        Message::HeaderHover(idx, hover) => {
-            app.state.header_hover[idx] = hover;
-
-            (Task::none(), false)
-        }
         Message::Saved(_result) => {
             app.saving = false;
 
@@ -131,6 +126,11 @@ pub fn update(app: &mut Application, message: Message) -> Task<Message> {
         }
         Message::PathButtonClick(side, path_to_open) => {
             app.state.go_to_directory(side, path_to_open);
+
+            (Task::none(), false)
+        }
+        Message::FileHover(side, idx, file_col, hover) => {
+            app.state.update_hover(side, idx, file_col, hover);
 
             (Task::none(), false)
         }

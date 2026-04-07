@@ -22,6 +22,36 @@ pub enum SortDirection {
     Descending,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum FileColumn {
+    Name,
+    Size,
+    Modified,
+}
+
+impl From<usize> for FileColumn {
+    fn from(col_num: usize) -> Self {
+        match col_num {
+            0 => Self::Name,
+            1 => Self::Size,
+            2 => Self::Modified,
+            _ => panic!("invalid column index"),
+        }
+    }
+}
+
+impl Into<usize> for FileColumn {
+    fn into(self) -> usize {
+        match self {
+            FileColumn::Name => 0,
+            FileColumn::Size => 1,
+            FileColumn::Modified => 2,
+        }
+    }
+}
+
+pub type HoverData = [bool; 3];
+
 #[derive(
     Debug,
     Eq,
@@ -38,6 +68,7 @@ pub struct FileRecord {
     pub size: u64,
     pub modified: SystemTime,
     pub is_go_back_record: bool,
+    pub hover: HoverData,
 }
 
 impl Default for FileRecord {
@@ -48,6 +79,7 @@ impl Default for FileRecord {
             size: 0,
             modified: SystemTime::UNIX_EPOCH,
             is_go_back_record: false,
+            hover: [false, false, false],
         }
     }
 }
@@ -56,10 +88,8 @@ impl FileRecord {
     pub fn new_go_back_record() -> FileRecord {
         FileRecord {
             file_name: String::from(GO_BACK_FILE_NAME),
-            is_file: false,
-            size: 0,
-            modified: SystemTime::UNIX_EPOCH,
             is_go_back_record: true,
+            ..Default::default()
         }
     }
 
@@ -130,7 +160,7 @@ pub fn read_directory(path: &PathBuf) -> Vec<FileRecord> {
                                 is_file,
                                 size,
                                 modified,
-                                is_go_back_record: false,
+                                ..Default::default()
                             })
                         }
                     }
