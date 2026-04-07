@@ -4,7 +4,7 @@ use iced::{Task, window};
 use crate::Application;
 
 pub fn update(app: &mut Application, message: Message) -> Task<Message> {
-    log::info!("update() message: {:#?}", message);
+    log::debug!("update() message: {:#?}", message);
 
     let (task, save_state): (Task<Message>, bool) = match message {
         Message::Loaded(result) => match result {
@@ -127,12 +127,16 @@ pub fn update(app: &mut Application, message: Message) -> Task<Message> {
         Message::PathButtonClick(side, path_to_open) => {
             app.state.go_to_directory(side, path_to_open);
 
-            (Task::none(), false)
+            (Task::none(), true)
         }
         Message::FileHover(side, idx, file_col, hover) => {
             app.state.update_hover(side, idx, file_col, hover);
 
             (Task::none(), false)
+        }
+        Message::Sort(side, sort_by, direction) => {
+            app.state.sort_window_files(side, sort_by, direction);
+            (Task::none(), true)
         }
     };
 

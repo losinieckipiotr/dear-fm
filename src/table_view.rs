@@ -2,25 +2,125 @@ use chrono::{DateTime, Local};
 use humansize::{DECIMAL, format_size};
 use iced::Length::Fill;
 use iced::widget::{
-    Column, container, mouse_area, opaque, row, scrollable, text,
+    Column, Row, button, container, mouse_area, opaque, row, scrollable, space,
+    text,
 };
-use iced::{Background, Element, Padding, Theme};
+use iced::{Background, Element, Padding, Theme, alignment};
 
 use crate::Message;
-use crate::files::{FileColumn, FileRecord};
-use crate::state::{AppState, Side};
+use crate::files::{FileColumn, FileRecord, SortBy, SortDirection};
+use crate::state::{AppState, Side, SortingOptions};
 
-fn header<'a>(title: &'a str) -> Element<'a, Message> {
-    container(text(title))
-        .padding(Padding::from([0, 5]))
-        .align_left(Fill)
-        .style(|theme: &Theme| container::Style {
-            background: Some(Background::Color(
-                theme.extended_palette().background.strong.color,
-            )),
-            ..Default::default()
-        })
-        .into()
+fn header<'a>(
+    side: Side,
+    title: &'a str,
+    file_col: FileColumn,
+    sort_by: SortBy,
+    direction: SortDirection,
+) -> Element<'a, Message> {
+    let sort_icon = match direction {
+        SortDirection::Ascending => "/\\",
+        SortDirection::Descending => "\\/",
+    };
+
+    // TODO: refactor
+    let sort_button: Element<'a, Message> = match file_col {
+        FileColumn::Name => {
+            if let SortBy::Name = sort_by {
+                button(text(sort_icon))
+                    .on_press(Message::Sort(
+                        side,
+                        SortBy::Name,
+                        match direction {
+                            SortDirection::Ascending => {
+                                SortDirection::Descending
+                            }
+                            SortDirection::Descending => {
+                                SortDirection::Ascending
+                            }
+                        },
+                    ))
+                    .into()
+            } else {
+                button(text("-"))
+                    .on_press(Message::Sort(
+                        side,
+                        SortBy::Name,
+                        SortDirection::Ascending,
+                    ))
+                    .into()
+            }
+        }
+        FileColumn::Size => {
+            if let SortBy::Size = sort_by {
+                button(text(sort_icon))
+                    .on_press(Message::Sort(
+                        side,
+                        SortBy::Size,
+                        match direction {
+                            SortDirection::Ascending => {
+                                SortDirection::Descending
+                            }
+                            SortDirection::Descending => {
+                                SortDirection::Ascending
+                            }
+                        },
+                    ))
+                    .into()
+            } else {
+                button(text("-"))
+                    .on_press(Message::Sort(
+                        side,
+                        SortBy::Size,
+                        SortDirection::Ascending,
+                    ))
+                    .into()
+            }
+        }
+        FileColumn::Modified => {
+            if let SortBy::Modified = sort_by {
+                button(text(sort_icon))
+                    .on_press(Message::Sort(
+                        side,
+                        SortBy::Modified,
+                        match direction {
+                            SortDirection::Ascending => {
+                                SortDirection::Descending
+                            }
+                            SortDirection::Descending => {
+                                SortDirection::Ascending
+                            }
+                        },
+                    ))
+                    .into()
+            } else {
+                button(text("-"))
+                    .on_press(Message::Sort(
+                        side,
+                        SortBy::Modified,
+                        SortDirection::Ascending,
+                    ))
+                    .into()
+            }
+        }
+    };
+
+    container(
+        Row::new()
+            .push(text(title))
+            .push(space::horizontal().width(Fill))
+            .push(sort_button)
+            .align_y(alignment::Vertical::Center),
+    )
+    .padding(Padding::from([0, 5])) // TODO: container with padding only for title
+    .align_left(Fill)
+    .style(|theme: &Theme| container::Style {
+        background: Some(Background::Color(
+            theme.extended_palette().background.strong.color,
+        )),
+        ..Default::default()
+    })
+    .into()
 }
 
 fn table_text_item(
@@ -94,7 +194,15 @@ fn name_column_view(
     side: Side,
     selected_idx: Option<usize>,
 ) -> Column<'_, Message> {
-    let col = Column::new().push(header("Name"));
+    let SortingOptions { sort_by, direction } = state.get_sorting_options(side);
+
+    let col = Column::new().push(header(
+        side,
+        "Name",
+        FileColumn::Name,
+        sort_by,
+        direction,
+    ));
 
     let names: Vec<Element<'_, Message>> = state
         .get_window_files(side)
@@ -135,7 +243,15 @@ fn size_column_view(
     side: Side,
     selected_idx: Option<usize>,
 ) -> Column<'_, Message> {
-    let col = Column::new().push(header("Size"));
+    let SortingOptions { sort_by, direction } = state.get_sorting_options(side);
+
+    let col = Column::new().push(header(
+        side,
+        "Size",
+        FileColumn::Size,
+        sort_by,
+        direction,
+    ));
 
     let names: Vec<Element<'_, Message>> = state
         .get_window_files(side)
@@ -172,7 +288,15 @@ fn modified_column_view(
     side: Side,
     selected_idx: Option<usize>,
 ) -> Column<'_, Message> {
-    let col = Column::new().push(header("Modified"));
+    let SortingOptions { sort_by, direction } = state.get_sorting_options(side);
+
+    let col = Column::new().push(header(
+        side,
+        "Modified",
+        FileColumn::Modified,
+        sort_by,
+        direction,
+    ));
 
     let names: Vec<Element<'_, Message>> = state
         .get_window_files(side)

@@ -52,9 +52,9 @@ impl Display for Side {
 
 #[derive(Debug, Clone, Copy, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
-struct SortingOptions {
-    sort_by: SortBy,
-    direction: SortDirection,
+pub struct SortingOptions {
+    pub sort_by: SortBy,
+    pub direction: SortDirection,
 }
 
 impl Default for SortingOptions {
@@ -143,6 +143,13 @@ impl AppState {
         match side {
             Side::Left => &self.left.files,
             Side::Right => &self.right.files,
+        }
+    }
+
+    pub fn get_sorting_options(&self, side: Side) -> SortingOptions {
+        match side {
+            Side::Left => self.left.sorting_options,
+            Side::Right => self.right.sorting_options,
         }
     }
 

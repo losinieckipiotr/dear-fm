@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use iced::window;
 
 use crate::{
-    files::FileColumn,
+    files::{FileColumn, SortBy, SortDirection},
     state::{AppState, LoadError, SaveError, Side},
 };
 
@@ -24,4 +24,5 @@ pub enum Message {
     Enter,
     PathButtonClick(Side, PathBuf),
     FileHover(Side, usize, FileColumn, bool),
+    Sort(Side, SortBy, SortDirection),
 }
