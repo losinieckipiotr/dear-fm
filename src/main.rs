@@ -27,7 +27,7 @@ pub fn main() -> iced::Result {
 
 struct Application {
     state: AppState,
-    loaded: bool,
+    loading: bool,
     dirty: bool,
     saving: bool,
 }
@@ -36,7 +36,7 @@ impl Default for Application {
     fn default() -> Self {
         Self {
             state: AppState::default(),
-            loaded: false,
+            loading: true,
             dirty: false,
             saving: false,
         }
@@ -49,7 +49,7 @@ impl Application {
     fn load() -> (Self, Task<Message>) {
         let future = AppState::load(Self::STATE_PATH);
 
-        (Self::default(), Task::perform(future, Message::Loaded))
+        (Self::default(), Task::perform(future, Message::AppLoaded))
     }
 
     fn title(&self) -> String {
@@ -72,7 +72,7 @@ impl Application {
     fn subscription(&self) -> Subscription<Message> {
         let window_sub =
             window::events().filter_map(|(_id, event)| match event {
-                window::Event::CloseRequested => Some(Message::Exit),
+                window::Event::CloseRequested => Some(Message::AppExit),
                 _ => None,
             });
 
@@ -90,13 +90,13 @@ impl Application {
             };
 
             match modified_key.as_ref() {
-                Key::Named(Named::Escape) => Some(Message::Exit),
-                Key::Character("f") => Some(Message::ToggleFullscreen),
-                Key::Character("m") => Some(Message::ToggleMaximize),
-                Key::Named(Named::Tab) => Some(Message::ToggleWindowFocus),
-                Key::Named(Named::ArrowDown) => Some(Message::ArrowDown),
-                Key::Named(Named::ArrowUp) => Some(Message::ArrowUp),
-                Key::Named(Named::Enter) => Some(Message::Enter),
+                Key::Named(Named::Escape) => Some(Message::AppExit),
+                Key::Character("f") => Some(Message::WindowToggleFullscreen),
+                Key::Character("m") => Some(Message::WindowToggleMaximize),
+                Key::Named(Named::Tab) => Some(Message::ToggleSideFocus),
+                Key::Named(Named::ArrowDown) => Some(Message::KeyArrowDown),
+                Key::Named(Named::ArrowUp) => Some(Message::KeyArrowUp),
+                Key::Named(Named::Enter) => Some(Message::KeyEnter),
                 _ => None,
             }
         });

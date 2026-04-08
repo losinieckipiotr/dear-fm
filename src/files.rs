@@ -22,6 +22,7 @@ pub enum SortDirection {
     Descending,
 }
 
+// TODO: rename to records?
 #[derive(Debug, Clone, Copy)]
 pub enum FileColumn {
     Name,
@@ -125,55 +126,55 @@ impl FileRecord {
     }
 }
 
-pub fn read_directory(path: &PathBuf) -> Vec<FileRecord> {
-    let entries = fs::read_dir(path);
+#[derive(Debug, Clone)]
+pub enum FilesError {
+    ReadDirectory,
+    NextEntry,
+    FileNameToString,
+    Metadata,
+    Modified,
+}
 
-    match entries {
-        Err(error) => {
-            log::error!(
-                "error during directory: '{}' read: {:#?}",
-                path.display(),
-                error
-            );
+pub async fn read_directory(
+    path: &PathBuf,
+) -> Result<Vec<FileRecord>, FilesError> {
+    let mut entries = tokio::fs::read_dir(path)
+        .await
+        .map_err(|_| FilesError::ReadDirectory)?;
 
-            Vec::new()
-        }
-        Ok(entries) => {
-            let read_files: Vec<FileRecord> = entries
-                .filter_map(|e| match e {
-                    Ok(entry) => {
-                        let file_name = String::from(
-                            entry.file_name().into_string().unwrap(),
-                        );
+    let mut read_records: Vec<FileRecord> = Vec::new();
+    while let Some(entry) = entries
+        .next_entry()
+        .await
+        .map_err(|_| FilesError::NextEntry)?
+    {
+        let file_name = String::from(
+            entry
+                .file_name()
+                .into_string()
+                .map_err(|_| FilesError::FileNameToString)?,
+        );
 
-                        // TODO: filtering should be optional
-                        if file_name.starts_with(".") {
-                            None
-                        } else {
-                            let metadata = entry.metadata().unwrap();
-                            let is_file = metadata.is_file();
-                            let size = metadata.size();
-                            let modified = metadata.modified().unwrap();
+        // TODO: filtering should be optional
+        if !file_name.starts_with(".") {
+            let metadata =
+                entry.metadata().await.map_err(|_| FilesError::Metadata)?;
+            let is_file = metadata.is_file();
+            let size = metadata.size();
+            let modified =
+                metadata.modified().map_err(|_| FilesError::Modified)?;
 
-                            Some(FileRecord {
-                                file_name,
-                                is_file,
-                                size,
-                                modified,
-                                ..Default::default()
-                            })
-                        }
-                    }
-                    Err(error) => {
-                        log::error!("{:#?}", error);
-                        None
-                    }
-                })
-                .collect();
-
-            read_files
+            read_records.push(FileRecord {
+                file_name,
+                is_file,
+                size,
+                modified,
+                ..Default::default()
+            });
         }
     }
+
+    Ok(read_records)
 }
 
 pub fn is_dir(path: &PathBuf) -> bool {

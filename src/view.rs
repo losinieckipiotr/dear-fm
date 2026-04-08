@@ -4,22 +4,26 @@ use crate::message::Message;
 use crate::state::{AppState, Side};
 use crate::{Application, table_view::table_view};
 use iced::Length::Fill;
-use iced::widget::{Column, Row, button, container, text};
-use iced::{Element, Theme, border, widget};
+use iced::widget::{Column, Row, button, container, rule, space, text};
+use iced::{Element, Theme, alignment, border};
 
 pub fn view(app: &Application) -> Element<'_, Message> {
-    if !app.loaded {
-        return widget::text("loading...").into();
+    let mut col = Column::new().push(
+        Row::new()
+            .push(side_view(&app.state, Side::Left))
+            .push(rule::vertical(1))
+            .push(side_view(&app.state, Side::Right)),
+    );
+
+    if app.loading {
+        col = col.push(
+            text("loading...")
+                .align_x(alignment::Horizontal::Center)
+                .width(Fill),
+        );
     }
 
-    // TODO: some topbar?
-
-    widget::row![
-        side_view(&app.state, Side::Left),
-        widget::rule::vertical(1),
-        side_view(&app.state, Side::Right),
-    ]
-    .into()
+    col.into()
 }
 
 fn side_view(state: &AppState, side: Side) -> Element<'_, Message> {

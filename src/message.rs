@@ -1,28 +1,35 @@
-use std::path::PathBuf;
-
-use iced::window;
-
 use crate::{
     files::{FileColumn, SortBy, SortDirection},
-    state::{AppState, LoadError, SaveError, Side},
+    state::{
+        AppState, LoadError, ReadDirData, ReadDirectoryError, SaveError, Side,
+    },
 };
+use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    Loaded(Result<AppState, LoadError>),
-    Saved(Result<(), SaveError>),
-    OpenFileOrDir(Side, usize),
-    ToggleFullscreen,
-    ToggleMaximize,
-    Exit,
-    WindowMode(window::Mode),
+    AppExit,
+    AppLoaded(Result<AppState, LoadError>),
+    AppSaved(Result<(), SaveError>),
+
+    WindowFullscreen(bool),
+    WindowToggleFullscreen,
+
     WindowMaximized(bool),
-    ToggleWindowFocus,
-    SelectIdx(Side, usize),
-    ArrowDown,
-    ArrowUp,
-    Enter,
+    WindowToggleMaximize,
+
+    ToggleSideFocus,
+    SelectRecord(Side, usize),
+
+    RecordHover(Side, usize, FileColumn, bool),
+    SortRecords(Side, SortBy, SortDirection),
+
+    KeyArrowDown,
+    KeyArrowUp,
+    KeyEnter,
+
     PathButtonClick(Side, PathBuf),
-    FileHover(Side, usize, FileColumn, bool),
-    Sort(Side, SortBy, SortDirection),
+    RecordDoubleClick(Side, String),
+    DirectoryOpened(Side, Result<ReadDirData, ReadDirectoryError>),
+    FileOpened,
 }

@@ -1,4 +1,7 @@
-use crate::message::Message;
+use crate::{
+    message::Message,
+    state::{AppState, ReadDirData},
+};
 use iced::{Task, window};
 
 use crate::Application;
@@ -7,9 +10,10 @@ pub fn update(app: &mut Application, message: Message) -> Task<Message> {
     log::debug!("update() message: {:#?}", message);
 
     let (task, save_state): (Task<Message>, bool) = match message {
-        Message::Loaded(result) => match result {
+        Message::AppExit => (iced::exit(), false),
+        Message::AppLoaded(result) => match result {
             Ok(state) => {
-                app.loaded = true;
+                app.loading = false;
                 app.state = state;
 
                 let task = if app.state.fullscreen {
@@ -28,38 +32,33 @@ pub fn update(app: &mut Application, message: Message) -> Task<Message> {
                     }
                 };
 
-                (task, false)
+                (task, true)
             }
-            Err(_) => {
-                log::error!("failed to load application state");
+            Err(load_error) => {
+                log::error!("failed to load application state: {load_error}");
 
                 (iced::exit(), false)
             }
         },
-        Message::Saved(_result) => {
+        Message::AppSaved(_result) => {
             app.saving = false;
 
             (Task::none(), false)
         }
-        Message::WindowMode(mode) => {
-            let fullscreen = match mode {
-                window::Mode::Fullscreen => true,
-                _ => false,
-            };
+        Message::WindowFullscreen(fullscreen) => {
             app.state.fullscreen = fullscreen;
 
             (Task::none(), true)
         }
-        Message::ToggleFullscreen => {
+        Message::WindowToggleFullscreen => {
             use window::{Mode, latest, mode, set_mode};
 
             let task: Task<Message> = latest().and_then(move |id| {
                 mode(id).then(move |mode| match mode {
                     Mode::Fullscreen => set_mode(id, Mode::Windowed)
-                        .chain(Task::done(Message::WindowMode(Mode::Windowed))),
-                    Mode::Windowed => set_mode(id, Mode::Fullscreen).chain(
-                        Task::done(Message::WindowMode(Mode::Fullscreen)),
-                    ),
+                        .chain(Task::done(Message::WindowFullscreen(false))),
+                    Mode::Windowed => set_mode(id, Mode::Fullscreen)
+                        .chain(Task::done(Message::WindowFullscreen(true))),
                     window::Mode::Hidden => Task::none(),
                 })
             });
@@ -71,7 +70,7 @@ pub fn update(app: &mut Application, message: Message) -> Task<Message> {
 
             (Task::none(), true)
         }
-        Message::ToggleMaximize => {
+        Message::WindowToggleMaximize => {
             let is_maximized_t = window::latest().and_then(|id| {
                 window::is_maximized(id)
                     .map(|maximized| Message::WindowMaximized(maximized))
@@ -83,60 +82,106 @@ pub fn update(app: &mut Application, message: Message) -> Task<Message> {
 
             (toggle_t, false)
         }
-        Message::Exit => (iced::exit(), true),
-        Message::OpenFileOrDir(side, idx) => {
-            let path_to_open = app.state.get_path_to_open_at(side, idx);
-            app.state.go_to_or_open(side, path_to_open);
+        Message::ToggleSideFocus => {
+            app.state.toggle_side_focus();
 
             (Task::none(), true)
         }
-        Message::ToggleWindowFocus => {
-            app.state.toggle_window_focus();
+        Message::SelectRecord(side, idx) => {
+            app.state.select_record_at_idx(side, idx);
 
             (Task::none(), true)
         }
-        Message::SelectIdx(side, idx) => {
-            app.state.focus_window(side);
-            app.state.set_selected_idx(side, idx);
+        Message::RecordHover(side, idx, file_col, hover) => {
+            app.state
+                .set_hover_for_idx_and_col(side, idx, file_col, hover);
 
+            (Task::none(), false)
+        }
+        Message::SortRecords(side, sort_by, direction) => {
+            app.state.sort_records(side, sort_by, direction);
             (Task::none(), true)
         }
-        Message::ArrowDown => {
+        Message::KeyArrowDown => {
             let side = app.state.get_selected_side();
             app.state.select_next_idx(side);
 
             (Task::none(), true)
         }
-        Message::ArrowUp => {
+        Message::KeyArrowUp => {
             let side = app.state.get_selected_side();
             app.state.select_prev_idx(side);
 
             (Task::none(), true)
         }
-        Message::Enter => {
+        Message::KeyEnter => {
             let side = app.state.get_selected_side();
-            let idx = app
-                .state
-                .get_selected_idx(side)
-                .expect("selected side must have idx");
-            let path_to_open = app.state.get_path_to_open_at(side, idx);
-            app.state.go_to_or_open(side, path_to_open);
+            let file_name = app.state.get_selected_file_name(side);
+            app.loading = true;
 
-            (Task::none(), true)
+            (
+                Task::done(Message::RecordDoubleClick(side, file_name)),
+                true,
+            )
         }
         Message::PathButtonClick(side, path_to_open) => {
-            app.state.go_to_directory(side, path_to_open);
-
-            (Task::none(), true)
+            app.loading = true;
+            (
+                Task::perform(
+                    AppState::read_directory(path_to_open),
+                    move |result| Message::DirectoryOpened(side, result),
+                ),
+                false,
+            )
         }
-        Message::FileHover(side, idx, file_col, hover) => {
-            app.state.update_hover(side, idx, file_col, hover);
+
+        Message::RecordDoubleClick(side, file_name) => {
+            app.loading = true;
+            let path = app.state.get_path(side);
+
+            (
+                Task::perform(
+                    AppState::read_dir_or_open_file(
+                        path.to_path_buf(),
+                        file_name,
+                    ),
+                    move |result| match result {
+                        Ok(option) => match option {
+                            Some(result) => {
+                                Message::DirectoryOpened(side, Ok(result))
+                            }
+                            None => Message::FileOpened,
+                        },
+                        Err(e) => {
+                            log::error!("failed to opend record {:#?}", e);
+
+                            Message::AppExit
+                        }
+                    },
+                ),
+                false,
+            )
+        }
+        Message::DirectoryOpened(side, result) => {
+            app.loading = false;
+
+            match result {
+                Ok(ReadDirData { path, records }) => {
+                    app.state.save_read_directory_data(side, path, records);
+
+                    (Task::none(), true)
+                }
+                Err(error) => {
+                    log::error!("failed to open directory: {error}");
+
+                    (iced::exit(), false)
+                }
+            }
+        }
+        Message::FileOpened => {
+            app.loading = false;
 
             (Task::none(), false)
-        }
-        Message::Sort(side, sort_by, direction) => {
-            app.state.sort_window_files(side, sort_by, direction);
-            (Task::none(), true)
         }
     };
 
@@ -150,7 +195,7 @@ pub fn update(app: &mut Application, message: Message) -> Task<Message> {
 
         Task::perform(
             app.state.clone().save(Application::STATE_PATH),
-            Message::Saved,
+            Message::AppSaved,
         )
     } else {
         Task::none()

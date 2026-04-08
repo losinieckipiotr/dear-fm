@@ -28,7 +28,7 @@ fn header<'a>(
         FileColumn::Name => {
             if let SortBy::Name = sort_by {
                 button(text(sort_icon))
-                    .on_press(Message::Sort(
+                    .on_press(Message::SortRecords(
                         side,
                         SortBy::Name,
                         match direction {
@@ -43,7 +43,7 @@ fn header<'a>(
                     .into()
             } else {
                 button(text("-"))
-                    .on_press(Message::Sort(
+                    .on_press(Message::SortRecords(
                         side,
                         SortBy::Name,
                         SortDirection::Ascending,
@@ -54,7 +54,7 @@ fn header<'a>(
         FileColumn::Size => {
             if let SortBy::Size = sort_by {
                 button(text(sort_icon))
-                    .on_press(Message::Sort(
+                    .on_press(Message::SortRecords(
                         side,
                         SortBy::Size,
                         match direction {
@@ -69,7 +69,7 @@ fn header<'a>(
                     .into()
             } else {
                 button(text("-"))
-                    .on_press(Message::Sort(
+                    .on_press(Message::SortRecords(
                         side,
                         SortBy::Size,
                         SortDirection::Ascending,
@@ -80,7 +80,7 @@ fn header<'a>(
         FileColumn::Modified => {
             if let SortBy::Modified = sort_by {
                 button(text(sort_icon))
-                    .on_press(Message::Sort(
+                    .on_press(Message::SortRecords(
                         side,
                         SortBy::Modified,
                         match direction {
@@ -95,7 +95,7 @@ fn header<'a>(
                     .into()
             } else {
                 button(text("-"))
-                    .on_press(Message::Sort(
+                    .on_press(Message::SortRecords(
                         side,
                         SortBy::Modified,
                         SortDirection::Ascending,
@@ -123,14 +123,15 @@ fn header<'a>(
     .into()
 }
 
-fn table_text_item(
-    state: &AppState,
+fn table_text_item<'a>(
+    state: &'a AppState,
     side: Side,
     idx: usize,
     file_col: FileColumn,
     selected_idx: Option<usize>,
-    data: String,
-) -> Element<'_, Message> {
+    file_name: String,
+    text_item: String,
+) -> Element<'a, Message> {
     let is_selected = match selected_idx {
         Some(selected_idx) => selected_idx == idx,
         None => false,
@@ -138,11 +139,11 @@ fn table_text_item(
 
     opaque(
         mouse_area(
-            container(text(data).wrapping(text::Wrapping::None))
+            container(text(text_item).wrapping(text::Wrapping::None))
                 .width(Fill)
                 .style(move |theme: &Theme| {
                     let pallete = theme.extended_palette();
-                    let hover = state.get_hover(side, idx);
+                    let hover = state.get_hover_for_idx(side, idx);
 
                     let background: Option<Background> = if is_selected {
                         Some(Background::Color(pallete.primary.base.color))
@@ -163,10 +164,10 @@ fn table_text_item(
                 })
                 .clip(true),
         )
-        .on_press(Message::SelectIdx(side, idx))
-        .on_double_click(Message::OpenFileOrDir(side, idx))
-        .on_enter(Message::FileHover(side, idx, file_col, true))
-        .on_exit(Message::FileHover(side, idx, file_col, false)),
+        .on_press(Message::SelectRecord(side, idx))
+        .on_double_click(Message::RecordDoubleClick(side, file_name))
+        .on_enter(Message::RecordHover(side, idx, file_col, true))
+        .on_exit(Message::RecordHover(side, idx, file_col, false)),
     )
     .into()
 }
@@ -176,7 +177,7 @@ fn name_view<'a>(
     side: Side,
     idx: usize,
     selected_idx: Option<usize>,
-    file: &FileRecord,
+    file: &'a FileRecord,
 ) -> Element<'a, Message> {
     table_text_item(
         state,
@@ -184,6 +185,7 @@ fn name_view<'a>(
         idx,
         FileColumn::Name,
         selected_idx,
+        file.file_name.clone(),
         file.file_name.clone(),
     )
     .into()
@@ -205,7 +207,7 @@ fn name_column_view(
     ));
 
     let names: Vec<Element<'_, Message>> = state
-        .get_window_files(side)
+        .get_records(side)
         .iter()
         .enumerate()
         .map(|(idx, file)| name_view(state, side, idx, selected_idx, file))
@@ -221,7 +223,7 @@ fn size_view<'a>(
     selected_idx: Option<usize>,
     file: &FileRecord,
 ) -> Element<'a, Message> {
-    let data = if file.is_go_back_record {
+    let text_item = if file.is_go_back_record {
         "".to_string()
     } else {
         let size = file.size;
@@ -234,8 +236,16 @@ fn size_view<'a>(
         }
     };
 
-    table_text_item(state, side, idx, FileColumn::Size, selected_idx, data)
-        .into()
+    table_text_item(
+        state,
+        side,
+        idx,
+        FileColumn::Size,
+        selected_idx,
+        file.file_name.clone(),
+        text_item,
+    )
+    .into()
 }
 
 fn size_column_view(
@@ -254,7 +264,7 @@ fn size_column_view(
     ));
 
     let names: Vec<Element<'_, Message>> = state
-        .get_window_files(side)
+        .get_records(side)
         .iter()
         .enumerate()
         .map(|(idx, file)| size_view(state, side, idx, selected_idx, file))
@@ -268,9 +278,9 @@ fn modified_view<'a>(
     side: Side,
     idx: usize,
     selected_idx: Option<usize>,
-    file: &FileRecord,
+    file: &'a FileRecord,
 ) -> Element<'a, Message> {
-    let data = if file.is_go_back_record {
+    let text_item = if file.is_go_back_record {
         "".to_string()
     } else {
         let modified = file.modified;
@@ -279,15 +289,23 @@ fn modified_view<'a>(
         datetime.format("%d %b %Y at %H:%M").to_string()
     };
 
-    table_text_item(state, side, idx, FileColumn::Modified, selected_idx, data)
-        .into()
+    table_text_item(
+        state,
+        side,
+        idx,
+        FileColumn::Modified,
+        selected_idx,
+        file.file_name.clone(),
+        text_item,
+    )
+    .into()
 }
 
-fn modified_column_view(
-    state: &AppState,
+fn modified_column_view<'a>(
+    state: &'a AppState,
     side: Side,
     selected_idx: Option<usize>,
-) -> Column<'_, Message> {
+) -> Column<'a, Message> {
     let SortingOptions { sort_by, direction } = state.get_sorting_options(side);
 
     let col = Column::new().push(header(
@@ -299,7 +317,7 @@ fn modified_column_view(
     ));
 
     let names: Vec<Element<'_, Message>> = state
-        .get_window_files(side)
+        .get_records(side)
         .iter()
         .enumerate()
         .map(|(idx, file)| modified_view(state, side, idx, selected_idx, file))
