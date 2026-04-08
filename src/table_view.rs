@@ -1,6 +1,6 @@
 use chrono::{DateTime, Local};
 use humansize::{DECIMAL, format_size};
-use iced::Length::Fill;
+use iced::Length::{self, Fill};
 use iced::widget::{
     Column, Row, button, container, mouse_area, opaque, row, scrollable, space,
     text,
@@ -11,6 +11,42 @@ use crate::Message;
 use crate::files::{FileColumn, FileRecord, SortBy, SortDirection};
 use crate::state::{AppState, Side, SortingOptions};
 
+fn sort_button(
+    direction: SortDirection,
+    on_press: Message,
+) -> Element<'static, Message> {
+    let sort_icon = match direction {
+        SortDirection::Ascending => "▲",
+        SortDirection::Descending => "▼",
+    };
+
+    button(
+        text(sort_icon)
+            .width(Length::Fixed(22.0))
+            .center()
+            .wrapping(text::Wrapping::None),
+    )
+    .clip(true)
+    .width(Length::Fixed(22.0))
+    .padding(Padding::ZERO)
+    .on_press(on_press)
+    .into()
+}
+
+fn not_sorted_button(on_press: Message) -> Element<'static, Message> {
+    button(
+        text(" ")
+            .width(Length::Fixed(20.0))
+            .center()
+            .wrapping(text::Wrapping::None),
+    )
+    .clip(true)
+    .width(Length::Fixed(22.0))
+    .padding(Padding::ZERO)
+    .on_press(on_press)
+    .into()
+}
+
 fn header<'a>(
     side: Side,
     title: &'a str,
@@ -18,17 +54,12 @@ fn header<'a>(
     sort_by: SortBy,
     direction: SortDirection,
 ) -> Element<'a, Message> {
-    let sort_icon = match direction {
-        SortDirection::Ascending => "/\\",
-        SortDirection::Descending => "\\/",
-    };
-
-    // TODO: refactor
-    let sort_button: Element<'a, Message> = match file_col {
+    let button_element: Element<'a, Message> = match file_col {
         FileColumn::Name => {
             if let SortBy::Name = sort_by {
-                button(text(sort_icon))
-                    .on_press(Message::SortRecords(
+                sort_button(
+                    direction,
+                    Message::SortRecords(
                         side,
                         SortBy::Name,
                         match direction {
@@ -39,22 +70,21 @@ fn header<'a>(
                                 SortDirection::Ascending
                             }
                         },
-                    ))
-                    .into()
+                    ),
+                )
             } else {
-                button(text("-"))
-                    .on_press(Message::SortRecords(
-                        side,
-                        SortBy::Name,
-                        SortDirection::Ascending,
-                    ))
-                    .into()
+                not_sorted_button(Message::SortRecords(
+                    side,
+                    SortBy::Name,
+                    SortDirection::Ascending,
+                ))
             }
         }
         FileColumn::Size => {
             if let SortBy::Size = sort_by {
-                button(text(sort_icon))
-                    .on_press(Message::SortRecords(
+                sort_button(
+                    direction,
+                    Message::SortRecords(
                         side,
                         SortBy::Size,
                         match direction {
@@ -65,22 +95,21 @@ fn header<'a>(
                                 SortDirection::Ascending
                             }
                         },
-                    ))
-                    .into()
+                    ),
+                )
             } else {
-                button(text("-"))
-                    .on_press(Message::SortRecords(
-                        side,
-                        SortBy::Size,
-                        SortDirection::Ascending,
-                    ))
-                    .into()
+                not_sorted_button(Message::SortRecords(
+                    side,
+                    SortBy::Size,
+                    SortDirection::Ascending,
+                ))
             }
         }
         FileColumn::Modified => {
             if let SortBy::Modified = sort_by {
-                button(text(sort_icon))
-                    .on_press(Message::SortRecords(
+                sort_button(
+                    direction,
+                    Message::SortRecords(
                         side,
                         SortBy::Modified,
                         match direction {
@@ -91,16 +120,14 @@ fn header<'a>(
                                 SortDirection::Ascending
                             }
                         },
-                    ))
-                    .into()
+                    ),
+                )
             } else {
-                button(text("-"))
-                    .on_press(Message::SortRecords(
-                        side,
-                        SortBy::Modified,
-                        SortDirection::Ascending,
-                    ))
-                    .into()
+                not_sorted_button(Message::SortRecords(
+                    side,
+                    SortBy::Modified,
+                    SortDirection::Ascending,
+                ))
             }
         }
     };
@@ -109,10 +136,10 @@ fn header<'a>(
         Row::new()
             .push(text(title))
             .push(space::horizontal().width(Fill))
-            .push(sort_button)
+            .push(button_element)
             .align_y(alignment::Vertical::Center),
     )
-    .padding(Padding::from([0, 5])) // TODO: container with padding only for title
+    .padding(Padding::from([5, 5]))
     .align_left(Fill)
     .style(|theme: &Theme| container::Style {
         background: Some(Background::Color(

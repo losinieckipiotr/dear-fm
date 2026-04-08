@@ -4,7 +4,7 @@ use crate::message::Message;
 use crate::state::{AppState, Side};
 use crate::{Application, table_view::table_view};
 use iced::Length::Fill;
-use iced::widget::{Column, Row, button, container, rule, space, text};
+use iced::widget::{Column, Row, button, container, rule, text};
 use iced::{Element, Theme, alignment, border};
 
 pub fn view(app: &Application) -> Element<'_, Message> {
