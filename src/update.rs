@@ -114,16 +114,7 @@ pub fn update(app: &mut Application, message: Message) -> Task<Message> {
 
             (Task::none(), true)
         }
-        Message::KeyEnter => {
-            let side = app.state.get_selected_side();
-            let file_name = app.state.get_selected_file_name(side);
-            app.loading = true;
-
-            (
-                Task::done(Message::RecordDoubleClick(side, file_name)),
-                true,
-            )
-        }
+        Message::KeyEnter => (Task::done(Message::RecordDoubleClick), false),
         Message::PathButtonClick(side, path_to_open) => {
             app.loading = true;
             (
@@ -135,15 +126,18 @@ pub fn update(app: &mut Application, message: Message) -> Task<Message> {
             )
         }
 
-        Message::RecordDoubleClick(side, file_name) => {
+        Message::RecordDoubleClick => {
+            let side = app.state.get_selected_side();
+            let file_name = app.state.get_selected_file_name(side);
             app.loading = true;
+
             let path = app.state.get_path(side);
 
             (
                 Task::perform(
                     AppState::read_dir_or_open_file(
                         path.to_path_buf(),
-                        file_name,
+                        file_name.clone(),
                     ),
                     move |result| match result {
                         Ok(option) => match option {

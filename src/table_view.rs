@@ -1,6 +1,7 @@
 use chrono::{DateTime, Local};
 use humansize::{DECIMAL, format_size};
 use iced::Length::{self, Fill};
+use iced::widget::text::Fragment;
 use iced::widget::{
     Column, Row, button, container, mouse_area, opaque, row, scrollable, space,
     text,
@@ -156,8 +157,7 @@ fn table_text_item<'a>(
     idx: usize,
     file_col: FileColumn,
     selected_idx: Option<usize>,
-    file_name: String,
-    text_item: String,
+    text_item: Fragment<'a>,
 ) -> Element<'a, Message> {
     let is_selected = match selected_idx {
         Some(selected_idx) => selected_idx == idx,
@@ -192,7 +192,7 @@ fn table_text_item<'a>(
                 .clip(true),
         )
         .on_press(Message::SelectRecord(side, idx))
-        .on_double_click(Message::RecordDoubleClick(side, file_name))
+        .on_double_click(Message::RecordDoubleClick)
         .on_enter(Message::RecordHover(side, idx, file_col, true))
         .on_exit(Message::RecordHover(side, idx, file_col, false)),
     )
@@ -212,8 +212,7 @@ fn name_view<'a>(
         idx,
         FileColumn::Name,
         selected_idx,
-        file.file_name.clone(),
-        file.file_name.clone(),
+        Fragment::Borrowed(&file.file_name),
     )
     .into()
 }
@@ -248,7 +247,7 @@ fn size_view<'a>(
     side: Side,
     idx: usize,
     selected_idx: Option<usize>,
-    file: &FileRecord,
+    file: &'a FileRecord,
 ) -> Element<'a, Message> {
     let text_item = if file.is_go_back_record {
         "".to_string()
@@ -269,8 +268,7 @@ fn size_view<'a>(
         idx,
         FileColumn::Size,
         selected_idx,
-        file.file_name.clone(),
-        text_item,
+        Fragment::Owned(text_item),
     )
     .into()
 }
@@ -322,8 +320,7 @@ fn modified_view<'a>(
         idx,
         FileColumn::Modified,
         selected_idx,
-        file.file_name.clone(),
-        text_item,
+        Fragment::Owned(text_item),
     )
     .into()
 }

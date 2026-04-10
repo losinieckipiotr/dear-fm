@@ -384,13 +384,13 @@ impl AppState {
         sort_records(records, sort_by, direction);
     }
 
-    pub fn get_selected_file_name(&self, side: Side) -> String {
+    pub fn get_selected_file_name(&self, side: Side) -> &String {
         let idx = self
             .get_selected_idx(side)
             .expect("selected side must have idx");
         let records = self.get_records(side);
 
-        records[idx].file_name.clone()
+        &records[idx].file_name
     }
 
     pub async fn read_directory(

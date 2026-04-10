@@ -29,7 +29,7 @@ pub enum Message {
     KeyEnter,
 
     PathButtonClick(Side, PathBuf),
-    RecordDoubleClick(Side, String),
+    RecordDoubleClick,
     DirectoryOpened(Side, Result<ReadDirData, ReadDirectoryError>),
     FileOpened,
 }
