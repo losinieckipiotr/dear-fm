@@ -255,10 +255,10 @@ impl AppState {
         }
     }
 
-    pub fn get_sorting_options(&self, side: Side) -> SortingOptions {
+    pub fn get_sorting_options(&self, side: Side) -> &SortingOptions {
         match side {
-            Side::Left => self.left.sorting_options,
-            Side::Right => self.right.sorting_options,
+            Side::Left => &self.left.sorting_options,
+            Side::Right => &self.right.sorting_options,
         }
     }
 

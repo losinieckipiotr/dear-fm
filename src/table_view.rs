@@ -13,9 +13,9 @@ use crate::files::{FileColumn, FileRecord, SortBy, SortDirection};
 use crate::state::{AppState, Side, SortingOptions};
 
 fn sort_button(
-    direction: SortDirection,
+    direction: &SortDirection,
     on_press: Message,
-) -> Element<'static, Message> {
+) -> Element<'_, Message> {
     let sort_icon = match direction {
         SortDirection::Ascending => "▲",
         SortDirection::Descending => "▼",
@@ -52,9 +52,9 @@ fn header<'a>(
     side: Side,
     title: &'a str,
     file_col: FileColumn,
-    sort_by: SortBy,
-    direction: SortDirection,
+    sort_options: &'a SortingOptions,
 ) -> Element<'a, Message> {
+    let SortingOptions { sort_by, direction } = sort_options;
     let button_element: Element<'a, Message> = match file_col {
         FileColumn::Name => {
             if let SortBy::Name = sort_by {
@@ -222,14 +222,13 @@ fn name_column_view(
     side: Side,
     selected_idx: Option<usize>,
 ) -> Column<'_, Message> {
-    let SortingOptions { sort_by, direction } = state.get_sorting_options(side);
+    let sort_options = state.get_sorting_options(side);
 
     let col = Column::new().push(header(
         side,
         "Name",
         FileColumn::Name,
-        sort_by,
-        direction,
+        &sort_options,
     ));
 
     let names: Vec<Element<'_, Message>> = state
@@ -278,14 +277,13 @@ fn size_column_view(
     side: Side,
     selected_idx: Option<usize>,
 ) -> Column<'_, Message> {
-    let SortingOptions { sort_by, direction } = state.get_sorting_options(side);
+    let sort_options = state.get_sorting_options(side);
 
     let col = Column::new().push(header(
         side,
         "Size",
         FileColumn::Size,
-        sort_by,
-        direction,
+        &sort_options,
     ));
 
     let names: Vec<Element<'_, Message>> = state
@@ -330,14 +328,13 @@ fn modified_column_view<'a>(
     side: Side,
     selected_idx: Option<usize>,
 ) -> Column<'a, Message> {
-    let SortingOptions { sort_by, direction } = state.get_sorting_options(side);
+    let sort_options = state.get_sorting_options(side);
 
     let col = Column::new().push(header(
         side,
         "Modified",
         FileColumn::Modified,
-        sort_by,
-        direction,
+        &sort_options,
     ));
 
     let names: Vec<Element<'_, Message>> = state
