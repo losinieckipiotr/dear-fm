@@ -10,20 +10,22 @@ use std::{
 const GO_BACK_FILE_NAME: &'static str = "..";
 
 #[derive(Debug, Clone, Copy, serde::Deserialize, serde::Serialize)]
-pub enum SortBy {
-    Name,
-    Size,
-    Modified,
-}
-
-#[derive(Debug, Clone, Copy, serde::Deserialize, serde::Serialize)]
 pub enum SortDirection {
     Ascending,
     Descending,
 }
 
+impl SortDirection {
+    pub fn toggle(&self) -> Self {
+        match self {
+            Self::Ascending => Self::Descending,
+            Self::Descending => Self::Ascending,
+        }
+    }
+}
+
 // TODO: rename to records?
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, serde::Deserialize, serde::Serialize)]
 pub enum FileColumn {
     Name,
     Size,
@@ -47,6 +49,22 @@ impl Into<usize> for FileColumn {
             FileColumn::Name => 0,
             FileColumn::Size => 1,
             FileColumn::Modified => 2,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
+pub struct SortingOptions {
+    pub sort_by: FileColumn,
+    pub direction: SortDirection,
+}
+
+impl Default for SortingOptions {
+    fn default() -> Self {
+        Self {
+            sort_by: FileColumn::Name,
+            direction: SortDirection::Ascending,
         }
     }
 }
@@ -96,29 +114,34 @@ impl FileRecord {
 
     fn sort_files_or_directories(
         records: &mut Vec<Self>,
-        sort_by: SortBy,
-        direction: SortDirection,
+        sorting_options: &SortingOptions,
     ) {
+        let SortingOptions { sort_by, direction } = *sorting_options;
+
         match direction {
             SortDirection::Ascending => match sort_by {
-                SortBy::Name => records.sort_by(|a, b| {
+                FileColumn::Name => records.sort_by(|a, b| {
                     let a_lower = a.file_name.to_lowercase();
                     let b_lower = b.file_name.to_lowercase();
 
                     a_lower.cmp(&b_lower)
                 }),
-                SortBy::Size => records.sort_by_key(|file| file.size),
-                SortBy::Modified => records.sort_by_key(|file| file.modified),
+                FileColumn::Size => records.sort_by_key(|file| file.size),
+                FileColumn::Modified => {
+                    records.sort_by_key(|file| file.modified)
+                }
             },
             SortDirection::Descending => match sort_by {
-                SortBy::Name => records.sort_by(|a, b| {
+                FileColumn::Name => records.sort_by(|a, b| {
                     let a_lower = a.file_name.to_lowercase();
                     let b_lower = b.file_name.to_lowercase();
 
                     b_lower.cmp(&a_lower)
                 }),
-                SortBy::Size => records.sort_by_key(|file| Reverse(file.size)),
-                SortBy::Modified => {
+                FileColumn::Size => {
+                    records.sort_by_key(|file| Reverse(file.size))
+                }
+                FileColumn::Modified => {
                     records.sort_by_key(|file| Reverse(file.modified))
                 }
             },
@@ -196,10 +219,10 @@ pub fn is_dir(path: &PathBuf) -> bool {
 
 pub fn sort_records(
     records: &mut Vec<FileRecord>,
-    sort_by: SortBy,
-    direction: SortDirection,
+    sorting_options: &SortingOptions,
 ) {
     log::debug!("sort_records");
+    log::debug!("sorting_options: {:#?}", sorting_options);
     log::debug!("records: {:#?}", records);
 
     let go_back_index = records.iter().position(|f| f.is_go_back_record);
@@ -231,8 +254,8 @@ pub fn sort_records(
     log::debug!("files: {:#?}", files);
     log::debug!("folders: {:#?}", folders);
 
-    FileRecord::sort_files_or_directories(&mut files, sort_by, direction);
-    FileRecord::sort_files_or_directories(&mut folders, sort_by, direction);
+    FileRecord::sort_files_or_directories(&mut files, sorting_options);
+    FileRecord::sort_files_or_directories(&mut folders, sorting_options);
 
     if records.len() != 0 {
         panic!("records vector should be empty by now");

@@ -9,8 +9,8 @@ use iced::widget::{
 use iced::{Background, Element, Padding, Theme, alignment};
 
 use crate::Message;
-use crate::files::{FileColumn, FileRecord, SortBy, SortDirection};
-use crate::state::{AppState, Side, SortingOptions};
+use crate::files::{FileColumn, FileRecord, SortDirection, SortingOptions};
+use crate::state::{AppState, Side};
 
 fn sort_button(
     direction: &SortDirection,
@@ -49,85 +49,77 @@ fn not_sorted_button(on_press: Message) -> Element<'static, Message> {
 }
 
 fn header<'a>(
+    state: &'a AppState,
     side: Side,
     title: &'a str,
     file_col: FileColumn,
-    sort_options: &'a SortingOptions,
 ) -> Element<'a, Message> {
-    let SortingOptions { sort_by, direction } = sort_options;
+    let SortingOptions { sort_by, direction } = state.get_sorting_options(side);
+
     let button_element: Element<'a, Message> = match file_col {
         FileColumn::Name => {
-            if let SortBy::Name = sort_by {
+            if let FileColumn::Name = sort_by {
                 sort_button(
                     direction,
                     Message::SortRecords(
                         side,
-                        SortBy::Name,
-                        match direction {
-                            SortDirection::Ascending => {
-                                SortDirection::Descending
-                            }
-                            SortDirection::Descending => {
-                                SortDirection::Ascending
-                            }
+                        SortingOptions {
+                            sort_by: FileColumn::Name,
+                            direction: direction.toggle(),
                         },
                     ),
                 )
             } else {
                 not_sorted_button(Message::SortRecords(
                     side,
-                    SortBy::Name,
-                    SortDirection::Ascending,
+                    SortingOptions {
+                        sort_by: FileColumn::Name,
+                        direction: SortDirection::Ascending,
+                    },
                 ))
             }
         }
         FileColumn::Size => {
-            if let SortBy::Size = sort_by {
+            if let FileColumn::Size = sort_by {
                 sort_button(
                     direction,
                     Message::SortRecords(
                         side,
-                        SortBy::Size,
-                        match direction {
-                            SortDirection::Ascending => {
-                                SortDirection::Descending
-                            }
-                            SortDirection::Descending => {
-                                SortDirection::Ascending
-                            }
+                        SortingOptions {
+                            sort_by: FileColumn::Size,
+                            direction: direction.toggle(),
                         },
                     ),
                 )
             } else {
                 not_sorted_button(Message::SortRecords(
                     side,
-                    SortBy::Size,
-                    SortDirection::Ascending,
+                    SortingOptions {
+                        sort_by: FileColumn::Size,
+                        direction: SortDirection::Ascending,
+                    },
                 ))
             }
         }
         FileColumn::Modified => {
-            if let SortBy::Modified = sort_by {
+            if let FileColumn::Modified = sort_by {
                 sort_button(
                     direction,
                     Message::SortRecords(
                         side,
-                        SortBy::Modified,
-                        match direction {
-                            SortDirection::Ascending => {
-                                SortDirection::Descending
-                            }
-                            SortDirection::Descending => {
-                                SortDirection::Ascending
-                            }
+                        SortingOptions {
+                            sort_by: FileColumn::Modified,
+                            direction: direction.toggle(),
                         },
                     ),
                 )
             } else {
                 not_sorted_button(Message::SortRecords(
                     side,
-                    SortBy::Modified,
-                    SortDirection::Ascending,
+                    SortingOptions {
+                        sort_by: FileColumn::Modified,
+                        direction: SortDirection::Ascending,
+                    },
                 ))
             }
         }
@@ -222,14 +214,7 @@ fn name_column_view(
     side: Side,
     selected_idx: Option<usize>,
 ) -> Column<'_, Message> {
-    let sort_options = state.get_sorting_options(side);
-
-    let col = Column::new().push(header(
-        side,
-        "Name",
-        FileColumn::Name,
-        &sort_options,
-    ));
+    let col = Column::new().push(header(state, side, "Name", FileColumn::Name));
 
     let names: Vec<Element<'_, Message>> = state
         .get_records(side)
@@ -277,14 +262,7 @@ fn size_column_view(
     side: Side,
     selected_idx: Option<usize>,
 ) -> Column<'_, Message> {
-    let sort_options = state.get_sorting_options(side);
-
-    let col = Column::new().push(header(
-        side,
-        "Size",
-        FileColumn::Size,
-        &sort_options,
-    ));
+    let col = Column::new().push(header(state, side, "Size", FileColumn::Size));
 
     let names: Vec<Element<'_, Message>> = state
         .get_records(side)
@@ -328,13 +306,11 @@ fn modified_column_view<'a>(
     side: Side,
     selected_idx: Option<usize>,
 ) -> Column<'a, Message> {
-    let sort_options = state.get_sorting_options(side);
-
     let col = Column::new().push(header(
+        state,
         side,
         "Modified",
         FileColumn::Modified,
-        &sort_options,
     ));
 
     let names: Vec<Element<'_, Message>> = state

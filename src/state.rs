@@ -7,7 +7,7 @@ use std::{
 use iced::time::milliseconds;
 
 use crate::files::{
-    FileColumn, FileRecord, FilesError, SortBy, SortDirection, is_dir,
+    FileColumn, FileRecord, FilesError, SortDirection, SortingOptions, is_dir,
     open_file, read_directory, sort_records,
 };
 
@@ -93,22 +93,6 @@ impl Display for Side {
     }
 }
 
-#[derive(Debug, Clone, Copy, serde::Deserialize, serde::Serialize)]
-#[serde(default)]
-pub struct SortingOptions {
-    pub sort_by: SortBy,
-    pub direction: SortDirection,
-}
-
-impl Default for SortingOptions {
-    fn default() -> Self {
-        Self {
-            sort_by: SortBy::Name,
-            direction: SortDirection::Ascending,
-        }
-    }
-}
-
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 struct SideData {
@@ -126,7 +110,7 @@ impl Default for SideData {
         Self {
             selected_idx: None,
             sorting_options: SortingOptions {
-                sort_by: SortBy::Name,
+                sort_by: FileColumn::Name,
                 direction: SortDirection::Ascending,
             },
             path: PathBuf::new(),
@@ -365,11 +349,8 @@ impl AppState {
     pub fn sort_records(
         &mut self,
         side: Side,
-        sort_by: SortBy,
-        direction: SortDirection,
+        sorting_options: SortingOptions,
     ) {
-        let sorting_options = SortingOptions { sort_by, direction };
-
         let records = match side {
             Side::Left => {
                 self.left.sorting_options = sorting_options;
@@ -381,7 +362,7 @@ impl AppState {
             }
         };
 
-        sort_records(records, sort_by, direction);
+        sort_records(records, &sorting_options);
     }
 
     pub fn get_selected_file_name(&self, side: Side) -> &String {
@@ -424,8 +405,7 @@ impl AppState {
             Side::Right => &mut self.right,
         };
 
-        let SortingOptions { sort_by, direction } = side_data.sorting_options;
-        sort_records(&mut records, sort_by, direction);
+        sort_records(&mut records, &side_data.sorting_options);
 
         side_data.path = path;
         side_data.records = records;

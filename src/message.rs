@@ -1,5 +1,5 @@
 use crate::{
-    files::{FileColumn, SortBy, SortDirection},
+    files::{FileColumn, SortingOptions},
     state::{
         AppState, LoadError, ReadDirData, ReadDirectoryError, SaveError, Side,
     },
@@ -22,7 +22,7 @@ pub enum Message {
     SelectRecord(Side, usize),
 
     RecordHover(Side, usize, FileColumn, bool),
-    SortRecords(Side, SortBy, SortDirection),
+    SortRecords(Side, SortingOptions),
 
     KeyArrowDown,
     KeyArrowUp,

@@ -98,8 +98,8 @@ pub fn update(app: &mut Application, message: Message) -> Task<Message> {
 
             (Task::none(), false)
         }
-        Message::SortRecords(side, sort_by, direction) => {
-            app.state.sort_records(side, sort_by, direction);
+        Message::SortRecords(side, sorting_options) => {
+            app.state.sort_records(side, sorting_options);
             (Task::none(), true)
         }
         Message::KeyArrowDown => {
