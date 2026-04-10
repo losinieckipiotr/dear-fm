@@ -148,13 +148,9 @@ fn table_text_item<'a>(
     side: Side,
     idx: usize,
     file_col: FileColumn,
-    selected_idx: Option<usize>,
     text_item: Fragment<'a>,
 ) -> Element<'a, Message> {
-    let is_selected = match selected_idx {
-        Some(selected_idx) => selected_idx == idx,
-        None => false,
-    };
+    let is_selected = state.is_selected_idx(side, idx);
 
     opaque(
         mouse_area(
@@ -195,7 +191,6 @@ fn name_view<'a>(
     state: &'a AppState,
     side: Side,
     idx: usize,
-    selected_idx: Option<usize>,
     file: &'a FileRecord,
 ) -> Element<'a, Message> {
     table_text_item(
@@ -203,24 +198,19 @@ fn name_view<'a>(
         side,
         idx,
         FileColumn::Name,
-        selected_idx,
         Fragment::Borrowed(&file.file_name),
     )
     .into()
 }
 
-fn name_column_view(
-    state: &AppState,
-    side: Side,
-    selected_idx: Option<usize>,
-) -> Column<'_, Message> {
+fn name_column_view(state: &AppState, side: Side) -> Column<'_, Message> {
     let col = Column::new().push(header(state, side, "Name", FileColumn::Name));
 
     let names: Vec<Element<'_, Message>> = state
         .get_records(side)
         .iter()
         .enumerate()
-        .map(|(idx, file)| name_view(state, side, idx, selected_idx, file))
+        .map(|(idx, file)| name_view(state, side, idx, file))
         .collect();
 
     col.extend(names)
@@ -230,7 +220,6 @@ fn size_view<'a>(
     state: &'a AppState,
     side: Side,
     idx: usize,
-    selected_idx: Option<usize>,
     file: &'a FileRecord,
 ) -> Element<'a, Message> {
     let text_item = if file.is_go_back_record {
@@ -251,24 +240,19 @@ fn size_view<'a>(
         side,
         idx,
         FileColumn::Size,
-        selected_idx,
         Fragment::Owned(text_item),
     )
     .into()
 }
 
-fn size_column_view(
-    state: &AppState,
-    side: Side,
-    selected_idx: Option<usize>,
-) -> Column<'_, Message> {
+fn size_column_view(state: &AppState, side: Side) -> Column<'_, Message> {
     let col = Column::new().push(header(state, side, "Size", FileColumn::Size));
 
     let names: Vec<Element<'_, Message>> = state
         .get_records(side)
         .iter()
         .enumerate()
-        .map(|(idx, file)| size_view(state, side, idx, selected_idx, file))
+        .map(|(idx, file)| size_view(state, side, idx, file))
         .collect();
 
     col.extend(names)
@@ -278,7 +262,6 @@ fn modified_view<'a>(
     state: &'a AppState,
     side: Side,
     idx: usize,
-    selected_idx: Option<usize>,
     file: &'a FileRecord,
 ) -> Element<'a, Message> {
     let text_item = if file.is_go_back_record {
@@ -295,7 +278,6 @@ fn modified_view<'a>(
         side,
         idx,
         FileColumn::Modified,
-        selected_idx,
         Fragment::Owned(text_item),
     )
     .into()
@@ -304,7 +286,6 @@ fn modified_view<'a>(
 fn modified_column_view<'a>(
     state: &'a AppState,
     side: Side,
-    selected_idx: Option<usize>,
 ) -> Column<'a, Message> {
     let col = Column::new().push(header(
         state,
@@ -317,18 +298,16 @@ fn modified_column_view<'a>(
         .get_records(side)
         .iter()
         .enumerate()
-        .map(|(idx, file)| modified_view(state, side, idx, selected_idx, file))
+        .map(|(idx, file)| modified_view(state, side, idx, file))
         .collect();
 
     col.extend(names)
 }
 
 pub fn table_view(state: &AppState, side: Side) -> Element<'_, Message> {
-    let selected_idx = state.get_selected_idx(side);
-
-    let name_col = name_column_view(state, side, selected_idx);
-    let size_col = size_column_view(state, side, selected_idx);
-    let modified_col = modified_column_view(state, side, selected_idx);
+    let name_col = name_column_view(state, side);
+    let size_col = size_column_view(state, side);
+    let modified_col = modified_column_view(state, side);
 
     let table = row![name_col, size_col, modified_col];
     scrollable(container(table).padding(Padding::from([0, 10]))).into()

@@ -85,6 +85,13 @@ impl Side {
             Self::Right => false,
         }
     }
+
+    fn toggle(&self) -> Side {
+        match self {
+            Self::Left => Self::Right,
+            Self::Right => Self::Left,
+        }
+    }
 }
 
 impl Display for Side {
@@ -96,8 +103,7 @@ impl Display for Side {
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 struct SideData {
-    // TODO: selected index should be one on top level
-    selected_idx: Option<usize>,
+    selected_idx: usize,
     sorting_options: SortingOptions,
     path: PathBuf,
 
@@ -108,7 +114,7 @@ struct SideData {
 impl Default for SideData {
     fn default() -> Self {
         Self {
-            selected_idx: None,
+            selected_idx: 0,
             sorting_options: SortingOptions {
                 sort_by: FileColumn::Name,
                 direction: SortDirection::Ascending,
@@ -120,7 +126,15 @@ impl Default for SideData {
 }
 
 #[derive(Debug, Clone)]
-pub struct ReadDirData {
+pub struct OpenRecordData {
+    pub side: Side,
+    pub path: PathBuf,
+    pub file_name: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct ReadDirectoryData {
+    pub side: Side,
     pub path: PathBuf,
     pub records: Vec<FileRecord>,
 }
@@ -169,27 +183,27 @@ impl AppState {
             Side::Right => Side::Left,
         };
 
-        let idx = state.get_selected_idx(side).unwrap_or(0);
+        let idx = state.get_selected_idx(side);
 
         // TODO: refactor?
         {
             let path_to_open = state.get_path(side);
-            let ReadDirData { path, records } =
-                AppState::read_directory(path_to_open.to_path_buf())
+            let read_dir_data =
+                AppState::read_directory(side, path_to_open.to_path_buf())
                     .await
                     .map_err(|err| LoadError::GoToDir(err))?;
 
-            state.save_read_directory_data(side, path, records);
+            state.save_read_directory_data(read_dir_data);
         }
         {
             let side = other_side;
             let path_to_open = state.get_path(side);
-            let ReadDirData { path, records } =
-                AppState::read_directory(path_to_open.to_path_buf())
+            let read_dir_data =
+                AppState::read_directory(side, path_to_open.to_path_buf())
                     .await
                     .map_err(|err| LoadError::GoToDir(err))?;
 
-            state.save_read_directory_data(side, path, records);
+            state.save_read_directory_data(read_dir_data);
         }
 
         state.focus_side(side);
@@ -218,7 +232,8 @@ impl AppState {
         Ok(())
     }
 
-    pub fn get_selected_side(&self) -> Side {
+    #[inline]
+    fn get_selected_side(&self) -> Side {
         match self.focused_side_left {
             true => Side::Left,
             false => Side::Right,
@@ -246,7 +261,8 @@ impl AppState {
         }
     }
 
-    pub fn get_selected_idx(&self, side: Side) -> Option<usize> {
+    #[inline]
+    fn get_selected_idx(&self, side: Side) -> usize {
         match side {
             Side::Left => self.left.selected_idx,
             Side::Right => self.right.selected_idx,
@@ -254,40 +270,29 @@ impl AppState {
     }
 
     fn set_selected_idx(&mut self, side: Side, idx: usize) {
-        let some_idx = Some(idx);
-
         match side {
             Side::Left => {
-                self.left.selected_idx = some_idx;
+                self.left.selected_idx = idx;
             }
             Side::Right => {
-                self.right.selected_idx = some_idx;
+                self.right.selected_idx = idx;
             }
         }
     }
 
-    fn focus_side(&mut self, side: Side) {
-        match side {
-            Side::Left => {
-                self.left.selected_idx = Some(0);
-                self.right.selected_idx = None;
-            }
-            Side::Right => {
-                self.left.selected_idx = None;
-                self.right.selected_idx = Some(0);
-            }
-        }
+    pub fn is_selected_idx(&self, side: Side, idx: usize) -> bool {
+        let selected_side = self.get_selected_side();
+        let selected_idx = self.get_selected_idx(side);
 
+        selected_side == side && selected_idx == idx
+    }
+
+    fn focus_side(&mut self, side: Side) {
         self.focused_side_left = side.is_left();
     }
 
     pub fn toggle_side_focus(&mut self) {
-        let new_side = match self.get_selected_side() {
-            Side::Left => Side::Right,
-            Side::Right => Side::Left,
-        };
-
-        self.focus_side(new_side);
+        self.focus_side(self.get_selected_side().toggle());
     }
 
     pub fn select_record_at_idx(&mut self, side: Side, idx: usize) {
@@ -295,12 +300,10 @@ impl AppState {
         self.set_selected_idx(side, idx);
     }
 
-    pub fn select_next_idx(&mut self, side: Side) {
+    pub fn select_next_idx(&mut self) {
+        let side = self.get_selected_side();
         let records_len = self.get_records(side).len();
-        let current_item = match self.get_selected_idx(side) {
-            Some(idx) => idx,
-            None => 0,
-        };
+        let current_item = self.get_selected_idx(side);
 
         let next_item = current_item + 1;
         if next_item < records_len {
@@ -308,11 +311,9 @@ impl AppState {
         }
     }
 
-    pub fn select_prev_idx(&mut self, side: Side) {
-        let current_item = match self.get_selected_idx(side) {
-            Some(idx) => idx,
-            None => 0,
-        };
+    pub fn select_prev_idx(&mut self) {
+        let side = self.get_selected_side();
+        let current_item = self.get_selected_idx(side);
 
         if current_item > 0 {
             self.set_selected_idx(side, current_item - 1);
@@ -365,18 +366,22 @@ impl AppState {
         sort_records(records, &sorting_options);
     }
 
-    pub fn get_selected_file_name(&self, side: Side) -> &String {
-        let idx = self
-            .get_selected_idx(side)
-            .expect("selected side must have idx");
+    pub fn get_open_record_data(&self) -> OpenRecordData {
+        let side = self.get_selected_side();
+        let idx = self.get_selected_idx(side);
         let records = self.get_records(side);
 
-        &records[idx].file_name
+        OpenRecordData {
+            side,
+            path: self.get_path(side).to_path_buf(),
+            file_name: records[idx].file_name.clone(),
+        }
     }
 
     pub async fn read_directory(
+        side: Side,
         path_to_open: PathBuf,
-    ) -> Result<ReadDirData, ReadDirectoryError> {
+    ) -> Result<ReadDirectoryData, ReadDirectoryError> {
         let canon_path = canonicalize(path_to_open)
             .map_err(|_| ReadDirectoryError::Canonicalize)?;
 
@@ -384,18 +389,20 @@ impl AppState {
             .await
             .map_err(|e| ReadDirectoryError::ReadDir(e))?;
 
-        Ok(ReadDirData {
+        Ok(ReadDirectoryData {
+            side,
             path: canon_path,
             records,
         })
     }
 
-    pub fn save_read_directory_data(
-        &mut self,
-        side: Side,
-        path: PathBuf,
-        mut records: Vec<FileRecord>,
-    ) {
+    pub fn save_read_directory_data(&mut self, data: ReadDirectoryData) {
+        let ReadDirectoryData {
+            side,
+            path,
+            mut records,
+        } = data;
+
         if path != PathBuf::from("/") {
             records.insert(0, FileRecord::new_go_back_record());
         }
@@ -415,15 +422,20 @@ impl AppState {
     }
 
     pub async fn read_dir_or_open_file(
-        path: PathBuf,
-        file_name: String,
-    ) -> Result<Option<ReadDirData>, OpenRecordError> {
+        open_record_data: OpenRecordData,
+    ) -> Result<Option<ReadDirectoryData>, OpenRecordError> {
+        let OpenRecordData {
+            side,
+            path,
+            file_name,
+        } = open_record_data;
+
         let mut path_to_open = PathBuf::new();
         path_to_open.push(path);
         path_to_open.push(file_name);
 
         if is_dir(&path_to_open) {
-            let data = AppState::read_directory(path_to_open)
+            let data = AppState::read_directory(side, path_to_open)
                 .await
                 .map_err(|_| OpenRecordError::Error)?;
 

@@ -1,7 +1,8 @@
 use crate::{
     files::{FileColumn, SortingOptions},
     state::{
-        AppState, LoadError, ReadDirData, ReadDirectoryError, SaveError, Side,
+        AppState, LoadError, ReadDirectoryData, ReadDirectoryError, SaveError,
+        Side,
     },
 };
 use std::path::PathBuf;
@@ -30,6 +31,6 @@ pub enum Message {
 
     PathButtonClick(Side, PathBuf),
     RecordDoubleClick,
-    DirectoryOpened(Side, Result<ReadDirData, ReadDirectoryError>),
+    DirectoryOpened(Result<ReadDirectoryData, ReadDirectoryError>),
     FileOpened,
 }

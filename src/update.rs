@@ -1,7 +1,4 @@
-use crate::{
-    message::Message,
-    state::{AppState, ReadDirData},
-};
+use crate::{message::Message, state::AppState};
 use iced::{Task, window};
 
 use crate::Application;
@@ -103,46 +100,40 @@ pub fn update(app: &mut Application, message: Message) -> Task<Message> {
             (Task::none(), true)
         }
         Message::KeyArrowDown => {
-            let side = app.state.get_selected_side();
-            app.state.select_next_idx(side);
+            app.state.select_next_idx();
 
             (Task::none(), true)
         }
         Message::KeyArrowUp => {
-            let side = app.state.get_selected_side();
-            app.state.select_prev_idx(side);
+            app.state.select_prev_idx();
 
             (Task::none(), true)
         }
         Message::KeyEnter => (Task::done(Message::RecordDoubleClick), false),
         Message::PathButtonClick(side, path_to_open) => {
             app.loading = true;
+
             (
                 Task::perform(
-                    AppState::read_directory(path_to_open),
-                    move |result| Message::DirectoryOpened(side, result),
+                    AppState::read_directory(side, path_to_open),
+                    |result| Message::DirectoryOpened(result),
                 ),
                 false,
             )
         }
 
         Message::RecordDoubleClick => {
-            let side = app.state.get_selected_side();
-            let file_name = app.state.get_selected_file_name(side);
             app.loading = true;
-
-            let path = app.state.get_path(side);
 
             (
                 Task::perform(
                     AppState::read_dir_or_open_file(
-                        path.to_path_buf(),
-                        file_name.clone(),
+                        app.state.get_open_record_data(),
                     ),
-                    move |result| match result {
+                    |result| match result {
                         Ok(option) => match option {
                             Some(result) => {
-                                Message::DirectoryOpened(side, Ok(result))
+                                Message::DirectoryOpened(Ok(result))
                             }
                             None => Message::FileOpened,
                         },
@@ -156,12 +147,12 @@ pub fn update(app: &mut Application, message: Message) -> Task<Message> {
                 false,
             )
         }
-        Message::DirectoryOpened(side, result) => {
+        Message::DirectoryOpened(result) => {
             app.loading = false;
 
             match result {
-                Ok(ReadDirData { path, records }) => {
-                    app.state.save_read_directory_data(side, path, records);
+                Ok(read_dir_data) => {
+                    app.state.save_read_directory_data(read_dir_data);
 
                     (Task::none(), true)
                 }
