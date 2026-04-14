@@ -1,4 +1,7 @@
-use crate::{message::Message, state::AppState};
+use crate::{
+    message::Message,
+    state::{AppState, OpenParentData},
+};
 use iced::{Task, window};
 
 use crate::Application;
@@ -110,6 +113,19 @@ pub fn update(app: &mut Application, message: Message) -> Task<Message> {
             (Task::none(), true)
         }
         Message::KeyEnter => (Task::done(Message::RecordDoubleClick), false),
+        Message::KeyBackspace => {
+            let open_parent_data_option = app.state.get_open_parent_data();
+
+            let task = match open_parent_data_option {
+                None => Task::none(),
+                Some(OpenParentData { side, path_to_open }) => Task::perform(
+                    AppState::read_directory(side, path_to_open),
+                    |result| Message::DirectoryOpened(result),
+                ),
+            };
+
+            (task, false)
+        }
         Message::PathButtonClick(side, path_to_open) => {
             app.loading = true;
 

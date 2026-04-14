@@ -133,6 +133,12 @@ pub struct OpenRecordData {
 }
 
 #[derive(Debug, Clone)]
+pub struct OpenParentData {
+    pub side: Side,
+    pub path_to_open: PathBuf,
+}
+
+#[derive(Debug, Clone)]
 pub struct ReadDirectoryData {
     pub side: Side,
     pub path: PathBuf,
@@ -375,6 +381,30 @@ impl AppState {
             side,
             path: self.get_path(side).to_path_buf(),
             file_name: records[idx].file_name.clone(),
+        }
+    }
+
+    pub fn get_open_parent_data(&self) -> Option<OpenParentData> {
+        let side = self.get_selected_side();
+        let current_path = self.get_path(side);
+        let mut path_to_open = PathBuf::from(current_path);
+        path_to_open.push("../");
+        let canon_path_res = canonicalize(path_to_open);
+
+        let path_to_open_option = match canon_path_res {
+            Ok(path) => Some(path),
+            Err(_) => None,
+        };
+
+        match path_to_open_option {
+            None => None,
+            Some(path_to_open) => {
+                if path_to_open == current_path {
+                    None
+                } else {
+                    Some(OpenParentData { side, path_to_open })
+                }
+            }
         }
     }
 

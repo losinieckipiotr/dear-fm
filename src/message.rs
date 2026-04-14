@@ -28,6 +28,7 @@ pub enum Message {
     KeyArrowDown,
     KeyArrowUp,
     KeyEnter,
+    KeyBackspace,
 
     PathButtonClick(Side, PathBuf),
     RecordDoubleClick,

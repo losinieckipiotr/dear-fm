@@ -152,38 +152,34 @@ fn table_text_item<'a>(
 ) -> Element<'a, Message> {
     let is_selected = state.is_selected_idx(side, idx);
 
-    opaque(
-        mouse_area(
-            container(text(text_item).wrapping(text::Wrapping::None))
-                .width(Fill)
-                .style(move |theme: &Theme| {
-                    let pallete = theme.extended_palette();
-                    let hover = state.get_hover_for_idx(side, idx);
+    mouse_area(
+        container(text(text_item).wrapping(text::Wrapping::None))
+            .width(Fill)
+            .style(move |theme: &Theme| {
+                let pallete = theme.extended_palette();
+                let hover = state.get_hover_for_idx(side, idx);
 
-                    let background: Option<Background> = if is_selected {
-                        Some(Background::Color(pallete.primary.base.color))
+                let background: Option<Background> = if is_selected {
+                    Some(Background::Color(pallete.primary.base.color))
+                } else {
+                    if hover {
+                        Some(Background::Color(pallete.background.strong.color))
                     } else {
-                        if hover {
-                            Some(Background::Color(
-                                pallete.background.strong.color,
-                            ))
-                        } else {
-                            None
-                        }
-                    };
-
-                    container::Style {
-                        background,
-                        ..Default::default()
+                        None
                     }
-                })
-                .clip(true),
-        )
-        .on_press(Message::SelectRecord(side, idx))
-        .on_double_click(Message::RecordDoubleClick)
-        .on_enter(Message::RecordHover(side, idx, file_col, true))
-        .on_exit(Message::RecordHover(side, idx, file_col, false)),
+                };
+
+                container::Style {
+                    background,
+                    ..Default::default()
+                }
+            })
+            .clip(true),
     )
+    .on_press(Message::SelectRecord(side, idx))
+    .on_double_click(Message::RecordDoubleClick)
+    .on_enter(Message::RecordHover(side, idx, file_col, true))
+    .on_exit(Message::RecordHover(side, idx, file_col, false))
     .into()
 }
 

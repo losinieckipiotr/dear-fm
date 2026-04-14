@@ -97,6 +97,7 @@ impl Application {
                 Key::Named(Named::ArrowDown) => Some(Message::KeyArrowDown),
                 Key::Named(Named::ArrowUp) => Some(Message::KeyArrowUp),
                 Key::Named(Named::Enter) => Some(Message::KeyEnter),
+                Key::Named(Named::Backspace) => Some(Message::KeyBackspace),
                 _ => None,
             }
         });
