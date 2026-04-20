@@ -3,6 +3,7 @@ use crate::state::AppState;
 use env_logger::Env;
 use iced::{Element, Size, Subscription, Task, Theme, keyboard, window};
 
+mod circle;
 mod files;
 mod message;
 mod state;

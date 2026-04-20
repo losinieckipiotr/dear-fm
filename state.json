@@ -1,20 +1,20 @@
 {
   "focused_side_left": false,
   "left": {
-    "selected_idx": 229,
-    "sorting_options": {
-      "sort_by": "Modified",
-      "direction": "Descending"
-    },
-    "path": "/Users/piotrlosiniecki/Pictures/piotrek-photos/2024"
-  },
-  "right": {
     "selected_idx": 0,
     "sorting_options": {
       "sort_by": "Name",
       "direction": "Descending"
     },
-    "path": "/Users/piotrlosiniecki/Pictures/piotrek-photos/2023"
+    "path": "/Users/piotrlosiniecki/tinder"
+  },
+  "right": {
+    "selected_idx": 12,
+    "sorting_options": {
+      "sort_by": "Modified",
+      "direction": "Descending"
+    },
+    "path": "/Users/piotrlosiniecki"
   },
   "fullscreen": false,
   "maximized": false

@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use crate::circle::circle;
 use crate::message::Message;
 use crate::state::{AppState, Side};
 use crate::{Application, table_view::table_view};
@@ -8,7 +9,11 @@ use iced::widget::{Column, Row, button, container, rule, text};
 use iced::{Element, Theme, alignment, border};
 
 pub fn view(app: &Application) -> Element<'_, Message> {
-    let mut col = Column::new().push(
+    let mut col = Column::new();
+
+    col = col.push(circle(10.0));
+
+    col = col.push(
         Row::new()
             .push(side_view(&app.state, Side::Left))
             .push(rule::vertical(1))

@@ -3,8 +3,7 @@ use humansize::{DECIMAL, format_size};
 use iced::Length::{self, Fill};
 use iced::widget::text::Fragment;
 use iced::widget::{
-    Column, Row, button, container, mouse_area, opaque, row, scrollable, space,
-    text,
+    Column, Row, button, container, mouse_area, row, scrollable, space, text,
 };
 use iced::{Background, Element, Padding, Theme, alignment};
 
