@@ -6,10 +6,10 @@
       "sort_by": "Name",
       "direction": "Descending"
     },
-    "path": "/Users/piotrlosiniecki/tinder"
+    "path": "/Users/piotrlosiniecki"
   },
   "right": {
-    "selected_idx": 12,
+    "selected_idx": 0,
     "sorting_options": {
       "sort_by": "Modified",
       "direction": "Descending"

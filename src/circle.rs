@@ -7,14 +7,19 @@ use iced::{Color, Element, Length, Rectangle, Size};
 use iced::{Event, Point};
 use iced::{Renderer, Vector};
 use iced::{alignment, mouse};
+use std::time::{Duration, Instant};
 
 pub struct Circle {
     radius: f32,
+    cycle: Duration,
 }
 
 impl Circle {
     pub fn new(radius: f32) -> Self {
-        Self { radius }
+        Self {
+            radius,
+            cycle: Duration::from_secs(3),
+        }
     }
 }
 
@@ -70,8 +75,12 @@ impl<Message, Theme> Widget<Message, Theme, Renderer> for Circle {
 
         let state = tree.state.downcast_mut::<State>();
 
-        if let Event::Window(window::Event::RedrawRequested(_now)) = event {
+        if let Event::Window(window::Event::RedrawRequested(now)) = event {
+            state.animation = state.animation.tick(self.cycle, *now);
             state.is_hovered = is_hovered;
+
+            state.cache.clear();
+            shell.request_redraw();
         } else if is_hovered != state.is_hovered {
             state.cache.clear();
             shell.request_redraw();
@@ -104,8 +113,9 @@ impl<Message, Theme> Widget<Message, Theme, Renderer> for Circle {
 
             let center = bounds.center();
             frame.translate(Vector::new(center.x, center.y));
-            // let angle = 45.0;
-            // frame.rotate(angle * std::f32::consts::PI / 180.0);
+
+            let angle = state.animation.progress * 360.0;
+            frame.rotate(angle * std::f32::consts::PI / 180.0);
 
             // let rectangle = canvas::Path::rectangle(
             //     Point::new(0.0 - self.radius / 2.0, 0.0 - self.radius / 2.0),
@@ -116,7 +126,8 @@ impl<Message, Theme> Widget<Message, Theme, Renderer> for Circle {
             // let circle = canvas::Path::circle(frame.center(), self.radius);
 
             frame.fill_text(canvas::Text {
-                content: "▲".to_string(),
+                // content: "▲".to_string(),
+                content: "⚣".to_string(),
                 position: Point::ORIGIN,
                 color,
                 size: bounds.size().width.into(),
@@ -154,10 +165,43 @@ impl<Message, Theme> Widget<Message, Theme, Renderer> for Circle {
     }
 }
 
+#[derive(Debug)]
+struct Animation {
+    start: Instant,
+    progress: f32,
+}
+
+impl Default for Animation {
+    fn default() -> Self {
+        Self {
+            start: Instant::now(),
+            progress: 0.0,
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 struct State {
     is_hovered: bool,
     cache: canvas::Cache,
+    animation: Animation,
+}
+
+impl Animation {
+    fn tick(&self, cycle: Duration, now: Instant) -> Self {
+        let elapsed = now.duration_since(self.start);
+
+        match elapsed {
+            elapsed if elapsed > cycle => Self {
+                start: now,
+                progress: 0.0,
+            },
+            _ => {
+                let progress = elapsed.as_secs_f32() / cycle.as_secs_f32();
+                Self { progress, ..*self }
+            }
+        }
+    }
 }
 
 impl<Message, Theme> From<Circle> for Element<'_, Message, Theme, Renderer> {

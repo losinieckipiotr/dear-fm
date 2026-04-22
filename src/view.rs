@@ -11,7 +11,7 @@ use iced::{Element, Theme, alignment, border};
 pub fn view(app: &Application) -> Element<'_, Message> {
     let mut col = Column::new();
 
-    col = col.push(circle(10.0));
+    col = col.push(circle(40.0));
 
     col = col.push(
         Row::new()
